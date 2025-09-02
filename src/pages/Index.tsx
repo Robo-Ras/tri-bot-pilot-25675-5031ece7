@@ -5,6 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
+import { Slider } from '@/components/ui/slider';
 
 const Index = () => {
   const [port, setPort] = useState<any>(null);
@@ -96,44 +97,89 @@ const Index = () => {
 
           {isConnected && (
             <div className="space-y-6">
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="motor1">Motor 1 (-255 a 255)</Label>
-                  <Input
-                    id="motor1"
-                    type="number"
-                    min="-255"
-                    max="255"
-                    value={motor1}
-                    onChange={(e) => setMotor1(Number(e.target.value))}
-                    placeholder="0"
-                  />
+              <div className="space-y-6">
+                <div className="space-y-3">
+                  <Label>Motor 1</Label>
+                  <div className="space-y-2">
+                    <div className="flex items-center space-x-4">
+                      <Slider
+                        value={[motor1]}
+                        onValueChange={(value) => setMotor1(value[0])}
+                        min={-255}
+                        max={255}
+                        step={1}
+                        className="flex-1"
+                      />
+                      <div className="w-12 text-center text-sm font-mono">
+                        {motor1}
+                      </div>
+                    </div>
+                    <Input
+                      type="number"
+                      min="-255"
+                      max="255"
+                      value={motor1}
+                      onChange={(e) => setMotor1(Number(e.target.value))}
+                      placeholder="0"
+                      className="text-center"
+                    />
+                  </div>
                 </div>
                 
-                <div className="space-y-2">
-                  <Label htmlFor="motor2">Motor 2 (-255 a 255)</Label>
-                  <Input
-                    id="motor2"
-                    type="number"
-                    min="-255"
-                    max="255"
-                    value={motor2}
-                    onChange={(e) => setMotor2(Number(e.target.value))}
-                    placeholder="0"
-                  />
+                <div className="space-y-3">
+                  <Label>Motor 2</Label>
+                  <div className="space-y-2">
+                    <div className="flex items-center space-x-4">
+                      <Slider
+                        value={[motor2]}
+                        onValueChange={(value) => setMotor2(value[0])}
+                        min={-255}
+                        max={255}
+                        step={1}
+                        className="flex-1"
+                      />
+                      <div className="w-12 text-center text-sm font-mono">
+                        {motor2}
+                      </div>
+                    </div>
+                    <Input
+                      type="number"
+                      min="-255"
+                      max="255"
+                      value={motor2}
+                      onChange={(e) => setMotor2(Number(e.target.value))}
+                      placeholder="0"
+                      className="text-center"
+                    />
+                  </div>
                 </div>
                 
-                <div className="space-y-2">
-                  <Label htmlFor="motor3">Motor 3 (-255 a 255)</Label>
-                  <Input
-                    id="motor3"
-                    type="number"
-                    min="-255"
-                    max="255"
-                    value={motor3}
-                    onChange={(e) => setMotor3(Number(e.target.value))}
-                    placeholder="0"
-                  />
+                <div className="space-y-3">
+                  <Label>Motor 3</Label>
+                  <div className="space-y-2">
+                    <div className="flex items-center space-x-4">
+                      <Slider
+                        value={[motor3]}
+                        onValueChange={(value) => setMotor3(value[0])}
+                        min={-255}
+                        max={255}
+                        step={1}
+                        className="flex-1"
+                      />
+                      <div className="w-12 text-center text-sm font-mono">
+                        {motor3}
+                      </div>
+                    </div>
+                    <Input
+                      type="number"
+                      min="-255"
+                      max="255"
+                      value={motor3}
+                      onChange={(e) => setMotor3(Number(e.target.value))}
+                      placeholder="0"
+                      className="text-center"
+                    />
+                  </div>
                 </div>
               </div>
 
