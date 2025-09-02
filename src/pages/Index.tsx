@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Slider } from '@/components/ui/slider';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -9,7 +10,9 @@ const Index = () => {
   const [port, setPort] = useState<any>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string>('');
-  const [speed, setSpeed] = useState<number>(80); // Velocidade de 0-100%
+  const [motor1, setMotor1] = useState<number>(0);
+  const [motor2, setMotor2] = useState<number>(0);
+  const [motor3, setMotor3] = useState<number>(0);
 
   // Verifica se o navegador suporta WebSerial
   const isWebSerialSupported = 'serial' in navigator;
@@ -47,45 +50,13 @@ const Index = () => {
     }
   };
 
-  const getSpeedValue = () => Math.floor(speed * 2.55); // Converte de 0-100% para 0-255
+  const goCommand = () => {
+    sendCommand(motor1, motor2, motor3);
+  };
 
-  const moveForward = () => sendCommand(0, getSpeedValue(), -getSpeedValue());
-  const moveBackward = () => sendCommand(0, -getSpeedValue(), getSpeedValue());
-  const moveRight = () => sendCommand(-getSpeedValue(), 0, getSpeedValue());
-  const moveLeft = () => sendCommand(getSpeedValue(), -getSpeedValue(), 0);
-  const stop = () => sendCommand(0, 0, 0);
-
-  useEffect(() => {
-    const handleKeyPress = (event: KeyboardEvent) => {
-      if (!isConnected) return;
-
-      switch (event.key.toLowerCase()) {
-        case 'w':
-        case 'arrowup':
-          moveForward();
-          break;
-        case 's':
-        case 'arrowdown':
-          moveBackward();
-          break;
-        case 'a':
-        case 'arrowleft':
-          moveLeft();
-          break;
-        case 'd':
-        case 'arrowright':
-          moveRight();
-          break;
-        case ' ':
-          event.preventDefault();
-          stop();
-          break;
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyPress);
-    return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [isConnected]);
+  const stopCommand = () => {
+    sendCommand(0, 0, 0);
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
@@ -124,51 +95,63 @@ const Index = () => {
           </div>
 
           {isConnected && (
-            <>
-              <div className="space-y-3">
-                <div className="text-center">
-                  <p className="text-sm font-medium">Velocidade: {speed}%</p>
-                </div>
-                <Slider
-                  value={[speed]}
-                  onValueChange={(value) => setSpeed(value[0])}
-                  max={100}
-                  min={0}
-                  step={1}
-                  className="w-full"
-                />
-              </div>
-
-              <div className="grid grid-cols-3 gap-2">
-                <div className="col-span-3 flex justify-center">
-                  <Button onClick={moveForward} size="lg" className="w-20">
-                    ↑
-                  </Button>
+            <div className="space-y-6">
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="motor1">Motor 1 (-255 a 255)</Label>
+                  <Input
+                    id="motor1"
+                    type="number"
+                    min="-255"
+                    max="255"
+                    value={motor1}
+                    onChange={(e) => setMotor1(Number(e.target.value))}
+                    placeholder="0"
+                  />
                 </div>
                 
-                <Button onClick={moveLeft} size="lg" className="w-20">
-                  ←
-                </Button>
-                <Button onClick={stop} size="lg" variant="destructive" className="w-20">
-                  PARE
-                </Button>
-                <Button onClick={moveRight} size="lg" className="w-20">
-                  →
-                </Button>
-
-                <div className="col-span-3 flex justify-center">
-                  <Button onClick={moveBackward} size="lg" className="w-20">
-                    ↓
-                  </Button>
+                <div className="space-y-2">
+                  <Label htmlFor="motor2">Motor 2 (-255 a 255)</Label>
+                  <Input
+                    id="motor2"
+                    type="number"
+                    min="-255"
+                    max="255"
+                    value={motor2}
+                    onChange={(e) => setMotor2(Number(e.target.value))}
+                    placeholder="0"
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="motor3">Motor 3 (-255 a 255)</Label>
+                  <Input
+                    id="motor3"
+                    type="number"
+                    min="-255"
+                    max="255"
+                    value={motor3}
+                    onChange={(e) => setMotor3(Number(e.target.value))}
+                    placeholder="0"
+                  />
                 </div>
               </div>
-            </>
+
+              <div className="grid grid-cols-2 gap-4">
+                <Button onClick={goCommand} size="lg" className="w-full">
+                  GO
+                </Button>
+                <Button onClick={stopCommand} size="lg" variant="destructive" className="w-full">
+                  STOP
+                </Button>
+              </div>
+            </div>
           )}
 
           {isConnected && (
             <div className="text-sm text-muted-foreground text-center">
-              <p>Controle por teclado:</p>
-              <p>WASD ou setas direcionais + Espaço para parar</p>
+              <p>Controle direto dos motores</p>
+              <p>Digite valores de -255 a 255 para cada motor</p>
             </div>
           )}
 
