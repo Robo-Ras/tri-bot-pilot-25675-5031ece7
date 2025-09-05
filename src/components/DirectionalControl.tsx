@@ -7,10 +7,10 @@ interface DirectionalControlProps {
 }
 
 const DirectionalControl = ({ onSendCommand }: DirectionalControlProps) => {
-  const moveForward = () => onSendCommand(0, -60, 60);
-  const moveBackward = () => onSendCommand(0, 60, -60);
-  const moveRight = () => onSendCommand(-60, -60, 60);
-  const moveLeft = () => onSendCommand(60, -60, 60);
+  const moveForward = () => onSendCommand(0, -180, 180);
+  const moveBackward = () => onSendCommand(0, 180, -180);
+  const moveRight = () => onSendCommand(-180, -180, 180);
+  const moveLeft = () => onSendCommand(180, -180, 180);
   const stop = () => onSendCommand(0, 0, 0);
 
   useEffect(() => {
@@ -118,10 +118,10 @@ const DirectionalControl = ({ onSendCommand }: DirectionalControlProps) => {
 
       <div className="text-xs text-muted-foreground text-center space-y-1">
         <p><strong>Comandos:</strong></p>
-        <p>Frente: M1=0, M2=-60, M3=60</p>
-        <p>Trás: M1=0, M2=60, M3=-60</p>
-        <p>Direita: M1=-60, M2=-60, M3=60</p>
-        <p>Esquerda: M1=60, M2=-60, M3=60</p>
+        <p>Frente: M1=0, M2=-180, M3=180</p>
+        <p>Trás: M1=0, M2=180, M3=-180</p>
+        <p>Direita: M1=-180, M2=-180, M3=180</p>
+        <p>Esquerda: M1=180, M2=-180, M3=180</p>
       </div>
     </div>
   );
