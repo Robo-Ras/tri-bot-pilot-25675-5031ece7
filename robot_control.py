@@ -38,8 +38,7 @@ class RobotController:
         speed_frame.pack(pady=10)
         
         ttk.Label(speed_frame, text="Velocidade:").pack()
-        self.speed_scale = tk.Scale(speed_frame, from_=0, to=255, orient=tk.HORIZONTAL, 
-                                   command=self.update_speed)
+        self.speed_scale = tk.Scale(speed_frame, from_=0, to=255, orient=tk.HORIZONTAL, command=self.update_speed)
         self.speed_scale.set(200)
         self.speed_scale.pack()
         
