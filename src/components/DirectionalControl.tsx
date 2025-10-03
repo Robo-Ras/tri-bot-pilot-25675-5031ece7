@@ -1,5 +1,7 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { Slider } from '@/components/ui/slider';
+import { Input } from '@/components/ui/input';
 import { ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Square } from 'lucide-react';
 
 interface DirectionalControlProps {
@@ -7,10 +9,12 @@ interface DirectionalControlProps {
 }
 
 const DirectionalControl = ({ onSendCommand }: DirectionalControlProps) => {
-  const moveForward = () => onSendCommand(0, -180, 180);
-  const moveBackward = () => onSendCommand(0, 180, -180);
-  const moveRight = () => onSendCommand(-180, -180, 180);
-  const moveLeft = () => onSendCommand(180, -180, 180);
+  const [speed, setSpeed] = useState(180);
+
+  const moveForward = () => onSendCommand(0, -speed, speed);
+  const moveBackward = () => onSendCommand(0, speed, -speed);
+  const moveRight = () => onSendCommand(-speed, -speed, speed);
+  const moveLeft = () => onSendCommand(speed, -speed, speed);
   const stop = () => onSendCommand(0, 0, 0);
 
   useEffect(() => {
@@ -52,7 +56,7 @@ const DirectionalControl = ({ onSendCommand }: DirectionalControlProps) => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, []);
+  }, [speed]);
 
   return (
     <div className="space-y-6">
@@ -61,6 +65,30 @@ const DirectionalControl = ({ onSendCommand }: DirectionalControlProps) => {
         <p className="text-sm text-muted-foreground">
           Use WASD, setas ou clique nos botões. Espaço para parar.
         </p>
+      </div>
+
+      <div className="space-y-4 max-w-md mx-auto">
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Velocidade: {speed}</label>
+          <div className="flex gap-4 items-center">
+            <Slider
+              value={[speed]}
+              onValueChange={(value) => setSpeed(value[0])}
+              min={0}
+              max={255}
+              step={1}
+              className="flex-1"
+            />
+            <Input
+              type="number"
+              value={speed}
+              onChange={(e) => setSpeed(Number(e.target.value))}
+              min={0}
+              max={255}
+              className="w-20"
+            />
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-3 gap-4 max-w-xs mx-auto">
@@ -118,10 +146,10 @@ const DirectionalControl = ({ onSendCommand }: DirectionalControlProps) => {
 
       <div className="text-xs text-muted-foreground text-center space-y-1">
         <p><strong>Comandos:</strong></p>
-        <p>Frente: M1=0, M2=-180, M3=180</p>
-        <p>Trás: M1=0, M2=180, M3=-180</p>
-        <p>Direita: M1=-180, M2=-180, M3=180</p>
-        <p>Esquerda: M1=180, M2=-180, M3=180</p>
+        <p>Frente: M1=0, M2=-{speed}, M3={speed}</p>
+        <p>Trás: M1=0, M2={speed}, M3=-{speed}</p>
+        <p>Direita: M1=-{speed}, M2=-{speed}, M3={speed}</p>
+        <p>Esquerda: M1={speed}, M2=-{speed}, M3={speed}</p>
       </div>
     </div>
   );
