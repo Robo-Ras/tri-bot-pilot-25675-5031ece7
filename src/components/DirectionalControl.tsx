@@ -10,12 +10,28 @@ interface DirectionalControlProps {
 
 const DirectionalControl = ({ onSendCommand }: DirectionalControlProps) => {
   const [speed, setSpeed] = useState(180);
+  const [activeDirection, setActiveDirection] = useState<string | null>(null);
 
-  const moveForward = () => onSendCommand(0, -speed, speed);
-  const moveBackward = () => onSendCommand(0, speed, -speed);
-  const moveRight = () => onSendCommand(-speed, -speed, speed);
-  const moveLeft = () => onSendCommand(speed, -speed, speed);
-  const stop = () => onSendCommand(0, 0, 0);
+  const moveForward = () => {
+    onSendCommand(0, -speed, speed);
+    setActiveDirection('forward');
+  };
+  const moveBackward = () => {
+    onSendCommand(0, speed, -speed);
+    setActiveDirection('backward');
+  };
+  const moveRight = () => {
+    onSendCommand(-speed, -speed, speed);
+    setActiveDirection('right');
+  };
+  const moveLeft = () => {
+    onSendCommand(speed, -speed, speed);
+    setActiveDirection('left');
+  };
+  const stop = () => {
+    onSendCommand(0, 0, 0);
+    setActiveDirection(null);
+  };
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -43,18 +59,10 @@ const DirectionalControl = ({ onSendCommand }: DirectionalControlProps) => {
       }
     };
 
-    const handleKeyUp = (event: KeyboardEvent) => {
-      if (['w', 's', 'a', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(event.key.toLowerCase())) {
-        stop();
-      }
-    };
-
     window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
 
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('keyup', handleKeyUp);
     };
   }, [speed]);
 
@@ -94,10 +102,9 @@ const DirectionalControl = ({ onSendCommand }: DirectionalControlProps) => {
       <div className="grid grid-cols-3 gap-4 max-w-xs mx-auto">
         <div></div>
         <Button
-          onMouseDown={moveForward}
-          onMouseUp={stop}
-          onMouseLeave={stop}
+          onClick={moveForward}
           size="lg"
+          variant={activeDirection === 'forward' ? 'default' : 'outline'}
           className="aspect-square p-0"
         >
           <ArrowUp size={24} />
@@ -105,10 +112,9 @@ const DirectionalControl = ({ onSendCommand }: DirectionalControlProps) => {
         <div></div>
 
         <Button
-          onMouseDown={moveLeft}
-          onMouseUp={stop}
-          onMouseLeave={stop}
+          onClick={moveLeft}
           size="lg"
+          variant={activeDirection === 'left' ? 'default' : 'outline'}
           className="aspect-square p-0"
         >
           <ArrowLeft size={24} />
@@ -122,10 +128,9 @@ const DirectionalControl = ({ onSendCommand }: DirectionalControlProps) => {
           <Square size={24} />
         </Button>
         <Button
-          onMouseDown={moveRight}
-          onMouseUp={stop}
-          onMouseLeave={stop}
+          onClick={moveRight}
           size="lg"
+          variant={activeDirection === 'right' ? 'default' : 'outline'}
           className="aspect-square p-0"
         >
           <ArrowRight size={24} />
@@ -133,10 +138,9 @@ const DirectionalControl = ({ onSendCommand }: DirectionalControlProps) => {
 
         <div></div>
         <Button
-          onMouseDown={moveBackward}
-          onMouseUp={stop}
-          onMouseLeave={stop}
+          onClick={moveBackward}
           size="lg"
+          variant={activeDirection === 'backward' ? 'default' : 'outline'}
           className="aspect-square p-0"
         >
           <ArrowDown size={24} />
