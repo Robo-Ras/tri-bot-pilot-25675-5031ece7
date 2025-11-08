@@ -13,5 +13,8 @@ websockets
 opencv-python
 numpy
 
+# Reconstrução 3D
+open3d
+
 # Async/Concurrent
 asyncio

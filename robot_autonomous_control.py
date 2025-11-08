@@ -1,6 +1,8 @@
 """
 Sistema de Controle Autônomo com Intel RealSense L515 e D435
-Processa dados dos sensores e implementa navegação com desvio de obstáculos
+- L515 (LiDAR): Posicionado embaixo do robô para detectar obstáculos no chão
+- D435 (Câmera): Posicionada em cima para verificar altura dos objetos
+- Reconstrução 3D do ambiente em tempo real
 """
 
 import pyrealsense2 as rs
@@ -12,105 +14,209 @@ import websockets
 import json
 import cv2
 import base64
+import open3d as o3d
 from threading import Thread
 from queue import Queue
+from collections import deque
 
 class RealSenseController:
     """Gerencia os sensores Intel RealSense"""
     
     def __init__(self):
-        self.pipeline_lidar = rs.pipeline()
-        self.pipeline_camera = rs.pipeline()
-        self.config_lidar = rs.config()
-        self.config_camera = rs.config()
-        
-        # Configuração do LiDAR L515
-        self.config_lidar.enable_device_serial_number(self.get_device_serial('L515'))
-        self.config_lidar.enable_stream(rs.stream.depth, 1024, 768, rs.format.z16, 30)
-        
-        # Configuração da Câmera D435
-        self.config_camera.enable_device_serial_number(self.get_device_serial('D435'))
-        self.config_camera.enable_stream(rs.stream.color, 640, 480, rs.format.bgr8, 30)
-        self.config_camera.enable_stream(rs.stream.depth, 640, 480, rs.format.z16, 30)
-        
+        self.pipeline_lidar = None
+        self.pipeline_camera = None
         self.lidar_started = False
         self.camera_started = False
+        self.lidar_serial = None
+        self.camera_serial = None
         
-    def get_device_serial(self, device_type):
-        """Obtém o serial number do dispositivo"""
+        # Para reconstrução 3D
+        self.point_cloud = o3d.geometry.PointCloud()
+        self.mesh = None
+        
+    def list_devices(self):
+        """Lista todos os dispositivos RealSense conectados"""
         ctx = rs.context()
         devices = ctx.query_devices()
-        for dev in devices:
+        print("\n=== Dispositivos RealSense Detectados ===")
+        
+        if len(devices) == 0:
+            print("✗ Nenhum dispositivo RealSense encontrado!")
+            return []
+        
+        device_list = []
+        for i, dev in enumerate(devices):
             name = dev.get_info(rs.camera_info.name)
-            if device_type in name:
-                return dev.get_info(rs.camera_info.serial_number)
-        return None
+            serial = dev.get_info(rs.camera_info.serial_number)
+            print(f"{i+1}. {name} (Serial: {serial})")
+            device_list.append({'name': name, 'serial': serial})
+        
+        return device_list
+    
+    def identify_devices(self):
+        """Identifica e atribui dispositivos baseado no modelo"""
+        devices = self.list_devices()
+        
+        for dev in devices:
+            # Busca por L515 ou qualquer LiDAR
+            if 'L515' in dev['name'] or 'L5' in dev['name']:
+                self.lidar_serial = dev['serial']
+                print(f"✓ LiDAR identificado: {dev['name']} (Serial: {dev['serial']})")
+            # Busca por D435 ou qualquer câmera RGB-D
+            elif 'D435' in dev['name'] or 'D4' in dev['name']:
+                self.camera_serial = dev['serial']
+                print(f"✓ Câmera identificada: {dev['name']} (Serial: {dev['serial']})")
+        
+        # Se não encontrou especificamente, usa os dispositivos disponíveis
+        if not self.lidar_serial and len(devices) > 0:
+            self.lidar_serial = devices[0]['serial']
+            print(f"⚠ Usando {devices[0]['name']} como LiDAR")
+        
+        if not self.camera_serial and len(devices) > 1:
+            self.camera_serial = devices[1]['serial']
+            print(f"⚠ Usando {devices[1]['name']} como Câmera")
+        elif not self.camera_serial and len(devices) == 1:
+            # Se só tem um dispositivo, usa para ambos
+            self.camera_serial = devices[0]['serial']
+            print(f"⚠ Usando {devices[0]['name']} como Câmera também")
+        
+        return self.lidar_serial is not None or self.camera_serial is not None
     
     def start(self):
         """Inicia os sensores"""
-        try:
-            self.pipeline_lidar.start(self.config_lidar)
-            self.lidar_started = True
-            print("✓ LiDAR L515 iniciado")
-        except Exception as e:
-            print(f"✗ Erro ao iniciar LiDAR: {e}")
-            
-        try:
-            self.pipeline_camera.start(self.config_camera)
-            self.camera_started = True
-            print("✓ Câmera D435 iniciada")
-        except Exception as e:
-            print(f"✗ Erro ao iniciar câmera: {e}")
+        if not self.identify_devices():
+            print("✗ Nenhum dispositivo RealSense disponível!")
+            return False
+        
+        # Inicia LiDAR (embaixo do robô)
+        if self.lidar_serial:
+            try:
+                self.pipeline_lidar = rs.pipeline()
+                config_lidar = rs.config()
+                config_lidar.enable_device(self.lidar_serial)
+                config_lidar.enable_stream(rs.stream.depth, 1024, 768, rs.format.z16, 30)
+                self.pipeline_lidar.start(config_lidar)
+                self.lidar_started = True
+                print("✓ LiDAR iniciado (posição: embaixo do robô)")
+            except Exception as e:
+                print(f"✗ Erro ao iniciar LiDAR: {e}")
+                self.pipeline_lidar = None
+        
+        # Inicia Câmera (em cima do robô)
+        if self.camera_serial:
+            try:
+                self.pipeline_camera = rs.pipeline()
+                config_camera = rs.config()
+                config_camera.enable_device(self.camera_serial)
+                config_camera.enable_stream(rs.stream.color, 640, 480, rs.format.bgr8, 30)
+                config_camera.enable_stream(rs.stream.depth, 640, 480, rs.format.z16, 30)
+                self.pipeline_camera.start(config_camera)
+                self.camera_started = True
+                print("✓ Câmera iniciada (posição: em cima do robô)")
+            except Exception as e:
+                print(f"✗ Erro ao iniciar câmera: {e}")
+                self.pipeline_camera = None
+        
+        return self.lidar_started or self.camera_started
     
     def get_lidar_data(self):
-        """Obtém dados do LiDAR"""
-        if not self.lidar_started:
+        """Obtém dados do LiDAR (obstáculos no chão)"""
+        if not self.lidar_started or not self.pipeline_lidar:
             return None
+        
+        try:
+            frames = self.pipeline_lidar.wait_for_frames(timeout_ms=1000)
+            depth_frame = frames.get_depth_frame()
+            if not depth_frame:
+                return None
             
-        frames = self.pipeline_lidar.wait_for_frames()
-        depth_frame = frames.get_depth_frame()
-        if not depth_frame:
+            depth_image = np.asanyarray(depth_frame.get_data())
+            return depth_image
+        except Exception as e:
+            print(f"Erro ao obter dados do LiDAR: {e}")
             return None
-            
-        # Converte para numpy array
-        depth_image = np.asanyarray(depth_frame.get_data())
-        return depth_image
     
     def get_camera_data(self):
-        """Obtém dados da câmera"""
-        if not self.camera_started:
+        """Obtém dados da câmera (verificação de altura)"""
+        if not self.camera_started or not self.pipeline_camera:
             return None, None
-            
-        frames = self.pipeline_camera.wait_for_frames()
-        color_frame = frames.get_color_frame()
-        depth_frame = frames.get_depth_frame()
         
-        if not color_frame or not depth_frame:
+        try:
+            frames = self.pipeline_camera.wait_for_frames(timeout_ms=1000)
+            color_frame = frames.get_color_frame()
+            depth_frame = frames.get_depth_frame()
+            
+            if not color_frame or not depth_frame:
+                return None, None
+            
+            color_image = np.asanyarray(color_frame.get_data())
+            depth_image = np.asanyarray(depth_frame.get_data())
+            
+            return color_image, depth_image
+        except Exception as e:
+            print(f"Erro ao obter dados da câmera: {e}")
             return None, None
-            
-        color_image = np.asanyarray(color_frame.get_data())
-        depth_image = np.asanyarray(depth_frame.get_data())
+    
+    def create_point_cloud(self, depth_image, color_image=None):
+        """Cria nuvem de pontos para reconstrução 3D"""
+        if depth_image is None:
+            return None
         
-        return color_image, depth_image
+        # Converte profundidade para metros
+        depth_meters = depth_image * 0.001
+        
+        # Cria malha de coordenadas
+        height, width = depth_meters.shape
+        fx = fy = 500  # Focal length aproximada
+        cx, cy = width / 2, height / 2
+        
+        points = []
+        colors = []
+        
+        for v in range(0, height, 4):  # Amostragem para performance
+            for u in range(0, width, 4):
+                z = depth_meters[v, u]
+                if z > 0.1 and z < 10:  # Filtra valores inválidos
+                    x = (u - cx) * z / fx
+                    y = (v - cy) * z / fy
+                    points.append([x, y, z])
+                    
+                    if color_image is not None:
+                        b, g, r = color_image[v, u]
+                        colors.append([r/255.0, g/255.0, b/255.0])
+                    else:
+                        colors.append([0.5, 0.5, 0.5])
+        
+        if len(points) == 0:
+            return None
+        
+        pcd = o3d.geometry.PointCloud()
+        pcd.points = o3d.utility.Vector3dVector(np.array(points))
+        pcd.colors = o3d.utility.Vector3dVector(np.array(colors))
+        
+        return pcd
     
     def stop(self):
         """Para os sensores"""
-        if self.lidar_started:
+        if self.lidar_started and self.pipeline_lidar:
             self.pipeline_lidar.stop()
-        if self.camera_started:
+            print("✓ LiDAR parado")
+        if self.camera_started and self.pipeline_camera:
             self.pipeline_camera.stop()
+            print("✓ Câmera parada")
 
 
 class ObstacleDetector:
     """Detecta obstáculos usando dados dos sensores"""
     
-    def __init__(self, safe_distance=0.5):
-        self.safe_distance = safe_distance  # metros
+    def __init__(self, safe_distance=0.5, height_threshold=1.5):
+        self.safe_distance = safe_distance  # metros - distância segura horizontal
+        self.height_threshold = height_threshold  # metros - altura máxima permitida
         
     def analyze_lidar(self, depth_image):
-        """Analisa dados do LiDAR para detectar obstáculos"""
+        """Analisa dados do LiDAR (embaixo) para obstáculos no chão"""
         if depth_image is None:
-            return {'safe': True, 'direction': 'forward'}
+            return None
         
         # Converte para metros
         depth_meters = depth_image * 0.001
@@ -122,11 +228,16 @@ class ObstacleDetector:
         right_sector = depth_meters[:, 2*width//3:]
         
         # Calcula distância mínima em cada setor
-        left_min = np.min(left_sector[left_sector > 0])
-        center_min = np.min(center_sector[center_sector > 0])
-        right_min = np.min(right_sector[right_sector > 0])
+        left_valid = left_sector[left_sector > 0]
+        center_valid = center_sector[center_sector > 0]
+        right_valid = right_sector[right_sector > 0]
+        
+        left_min = np.min(left_valid) if len(left_valid) > 0 else 10.0
+        center_min = np.min(center_valid) if len(center_valid) > 0 else 10.0
+        right_min = np.min(right_valid) if len(right_valid) > 0 else 10.0
         
         obstacles = {
+            'type': 'ground',
             'left': left_min < self.safe_distance,
             'center': center_min < self.safe_distance,
             'right': right_min < self.safe_distance,
@@ -138,6 +249,46 @@ class ObstacleDetector:
         }
         
         return obstacles
+    
+    def analyze_height(self, depth_image):
+        """Analisa dados da câmera (em cima) para verificar altura dos objetos"""
+        if depth_image is None:
+            return None
+        
+        # Converte para metros
+        depth_meters = depth_image * 0.001
+        
+        # Analisa a região superior da imagem (objetos altos)
+        height, width = depth_meters.shape
+        upper_region = depth_meters[:height//2, :]
+        
+        # Divide em setores
+        left_sector = upper_region[:, :width//3]
+        center_sector = upper_region[:, width//3:2*width//3]
+        right_sector = upper_region[:, 2*width//3:]
+        
+        # Detecta objetos altos próximos
+        left_valid = left_sector[(left_sector > 0) & (left_sector < self.height_threshold)]
+        center_valid = center_sector[(center_sector > 0) & (center_sector < self.height_threshold)]
+        right_valid = right_sector[(right_sector > 0) & (right_sector < self.height_threshold)]
+        
+        left_min = np.min(left_valid) if len(left_valid) > 0 else 10.0
+        center_min = np.min(center_valid) if len(center_valid) > 0 else 10.0
+        right_min = np.min(right_valid) if len(right_valid) > 0 else 10.0
+        
+        height_obstacles = {
+            'type': 'height',
+            'left': left_min < self.safe_distance,
+            'center': center_min < self.safe_distance,
+            'right': right_min < self.safe_distance,
+            'distances': {
+                'left': float(left_min),
+                'center': float(center_min),
+                'right': float(right_min)
+            }
+        }
+        
+        return height_obstacles
 
 
 class AutonomousNavigator:
@@ -147,15 +298,33 @@ class AutonomousNavigator:
         self.detector = obstacle_detector
         self.current_state = 'idle'
         
-    def decide_movement(self, obstacles):
-        """Decide o movimento baseado nos obstáculos"""
-        if not obstacles['center']:
+    def decide_movement(self, ground_obstacles, height_obstacles):
+        """Decide o movimento baseado nos obstáculos (chão e altura)"""
+        # Combina informações de ambos os sensores
+        obstacles_combined = {
+            'left': False,
+            'center': False,
+            'right': False
+        }
+        
+        if ground_obstacles:
+            obstacles_combined['left'] |= ground_obstacles['left']
+            obstacles_combined['center'] |= ground_obstacles['center']
+            obstacles_combined['right'] |= ground_obstacles['right']
+        
+        if height_obstacles:
+            obstacles_combined['left'] |= height_obstacles['left']
+            obstacles_combined['center'] |= height_obstacles['center']
+            obstacles_combined['right'] |= height_obstacles['right']
+        
+        # Decisão de movimento
+        if not obstacles_combined['center']:
             # Caminho livre à frente
             return 'forward', 150
-        elif not obstacles['right']:
+        elif not obstacles_combined['right']:
             # Desviar para direita
             return 'right', 120
-        elif not obstacles['left']:
+        elif not obstacles_combined['left']:
             # Desviar para esquerda
             return 'left', 120
         else:
@@ -277,26 +446,34 @@ class WebSocketServer:
     
     async def sensor_loop(self):
         """Loop principal de processamento dos sensores"""
+        frame_count = 0
+        
         while self.running:
             # Obtém dados dos sensores
-            lidar_data = self.sensors.get_lidar_data()
-            color_image, camera_depth = self.sensors.get_camera_data()
+            lidar_data = self.sensors.get_lidar_data()  # Obstáculos no chão
+            color_image, camera_depth = self.sensors.get_camera_data()  # Altura dos objetos
             
             # Detecta obstáculos
-            obstacles = None
+            ground_obstacles = None
+            height_obstacles = None
+            
             if lidar_data is not None:
-                obstacles = self.detector.analyze_lidar(lidar_data)
+                ground_obstacles = self.detector.analyze_lidar(lidar_data)
+            
+            if camera_depth is not None:
+                height_obstacles = self.detector.analyze_height(camera_depth)
             
             # Navegação autônoma
-            if self.autonomous_mode and obstacles:
-                direction, speed = self.navigator.decide_movement(obstacles)
+            if self.autonomous_mode and (ground_obstacles or height_obstacles):
+                direction, speed = self.navigator.decide_movement(ground_obstacles, height_obstacles)
                 self.robot.move(direction, speed)
             
             # Prepara dados para enviar
             message = {
                 'type': 'sensor_data',
                 'timestamp': asyncio.get_event_loop().time(),
-                'obstacles': obstacles
+                'ground_obstacles': ground_obstacles,
+                'height_obstacles': height_obstacles
             }
             
             # Envia frame da câmera (comprimido)
@@ -304,6 +481,28 @@ class WebSocketServer:
                 _, buffer = cv2.imencode('.jpg', color_image, [cv2.IMWRITE_JPEG_QUALITY, 50])
                 image_base64 = base64.b64encode(buffer).decode('utf-8')
                 message['camera'] = image_base64
+            
+            # Reconstrução 3D a cada 10 frames
+            frame_count += 1
+            if frame_count % 10 == 0:
+                # Usa dados do LiDAR para reconstrução 3D
+                if lidar_data is not None:
+                    pcd = self.sensors.create_point_cloud(lidar_data, None)
+                    if pcd is not None:
+                        # Serializa nuvem de pontos simplificada
+                        points = np.asarray(pcd.points)
+                        colors = np.asarray(pcd.colors)
+                        
+                        # Amostragem para reduzir tamanho
+                        if len(points) > 1000:
+                            indices = np.random.choice(len(points), 1000, replace=False)
+                            points = points[indices]
+                            colors = colors[indices]
+                        
+                        message['point_cloud'] = {
+                            'points': points.tolist(),
+                            'colors': colors.tolist()
+                        }
             
             await self.send_to_all(message)
             await asyncio.sleep(0.1)  # 10 Hz

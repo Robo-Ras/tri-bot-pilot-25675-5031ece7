@@ -3,6 +3,7 @@ import DirectionalControl from "@/components/DirectionalControl";
 import MotorSpeedControl from "@/components/MotorSpeedControl";
 import { SensorVisualization } from "@/components/SensorVisualization";
 import { AutonomousControl } from "@/components/AutonomousControl";
+import Map3DVisualization from "@/components/Map3DVisualization";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 
@@ -11,7 +12,9 @@ const Index = () => {
   const [isConnected, setIsConnected] = useState(false);
   const [autonomousMode, setAutonomousMode] = useState(false);
   const [cameraImage, setCameraImage] = useState<string>();
-  const [obstacles, setObstacles] = useState<any>();
+  const [groundObstacles, setGroundObstacles] = useState<any>();
+  const [heightObstacles, setHeightObstacles] = useState<any>();
+  const [pointCloud, setPointCloud] = useState<any>();
   const wsRef = useRef<WebSocket | null>(null);
   const { toast } = useToast();
 
@@ -36,8 +39,14 @@ const Index = () => {
           if (data.camera) {
             setCameraImage(data.camera);
           }
-          if (data.obstacles) {
-            setObstacles(data.obstacles);
+          if (data.ground_obstacles) {
+            setGroundObstacles(data.ground_obstacles);
+          }
+          if (data.height_obstacles) {
+            setHeightObstacles(data.height_obstacles);
+          }
+          if (data.point_cloud) {
+            setPointCloud(data.point_cloud);
           }
         }
       };
@@ -130,20 +139,25 @@ const Index = () => {
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        {/* Autonomous Control */}
+      {/* Autonomous Control */}
+      <div className="mb-6">
         <AutonomousControl
           isConnected={isConnected}
           autonomousMode={autonomousMode}
           onToggleAutonomous={handleToggleAutonomous}
           onEmergencyStop={handleEmergencyStop}
         />
-        
-        {/* Sensor Visualization */}
+      </div>
+
+      {/* Sensors and 3D Map */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         <SensorVisualization
           cameraImage={cameraImage}
-          obstacles={obstacles}
+          groundObstacles={groundObstacles}
+          heightObstacles={heightObstacles}
         />
+        
+        <Map3DVisualization pointCloud={pointCloud} />
       </div>
 
       <Tabs defaultValue="directional" className="w-full">
