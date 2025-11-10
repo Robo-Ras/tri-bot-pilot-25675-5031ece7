@@ -13,6 +13,9 @@ websockets
 opencv-python
 numpy<2.0.0
 
+# Cálculos científicos
+scipy
+
 # Reconstrução 3D
 open3d
 

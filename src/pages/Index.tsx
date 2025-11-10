@@ -15,6 +15,7 @@ const Index = () => {
   const [groundObstacles, setGroundObstacles] = useState<any>();
   const [heightObstacles, setHeightObstacles] = useState<any>();
   const [pointCloud, setPointCloud] = useState<any>();
+  const [trackedObjects, setTrackedObjects] = useState<any>();
   const wsRef = useRef<WebSocket | null>(null);
   const { toast } = useToast();
 
@@ -47,6 +48,9 @@ const Index = () => {
           }
           if (data.point_cloud) {
             setPointCloud(data.point_cloud);
+          }
+          if (data.tracked_objects) {
+            setTrackedObjects(data.tracked_objects);
           }
         }
       };
@@ -155,6 +159,7 @@ const Index = () => {
           cameraImage={cameraImage}
           groundObstacles={groundObstacles}
           heightObstacles={heightObstacles}
+          trackedObjects={trackedObjects}
         />
         
         <Map3DVisualization pointCloud={pointCloud} />

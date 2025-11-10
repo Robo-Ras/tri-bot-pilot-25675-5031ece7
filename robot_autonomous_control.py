@@ -18,6 +18,7 @@ import open3d as o3d
 from threading import Thread
 from queue import Queue
 from collections import deque
+from scipy.spatial import distance
 
 class RealSenseController:
     """Gerencia os sensores Intel RealSense"""
@@ -229,6 +230,155 @@ class RealSenseController:
             print("✓ Câmera parada")
 
 
+class ObjectTracker:
+    """Rastreia objetos detectados pela câmera"""
+    
+    def __init__(self, max_disappeared=30, min_area=500):
+        self.next_object_id = 0
+        self.objects = {}  # {id: centroid}
+        self.disappeared = {}  # {id: frames_disappeared}
+        self.max_disappeared = max_disappeared
+        self.min_area = min_area
+        self.bg_subtractor = cv2.createBackgroundSubtractorMOG2(
+            history=500, varThreshold=50, detectShadows=False
+        )
+        
+    def detect_objects(self, frame, depth_frame=None):
+        """Detecta objetos no frame usando subtração de fundo"""
+        if frame is None:
+            return []
+        
+        # Aplica subtração de fundo
+        fg_mask = self.bg_subtractor.apply(frame)
+        
+        # Remove ruído
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+        fg_mask = cv2.morphologyEx(fg_mask, cv2.MORPH_OPEN, kernel)
+        fg_mask = cv2.morphologyEx(fg_mask, cv2.MORPH_CLOSE, kernel)
+        
+        # Encontra contornos
+        contours, _ = cv2.findContours(fg_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        
+        detected_objects = []
+        for contour in contours:
+            area = cv2.contourArea(contour)
+            if area < self.min_area:
+                continue
+            
+            # Calcula bounding box
+            x, y, w, h = cv2.boundingRect(contour)
+            
+            # Calcula centroide
+            M = cv2.moments(contour)
+            if M["m00"] != 0:
+                cx = int(M["m10"] / M["m00"])
+                cy = int(M["m01"] / M["m00"])
+            else:
+                cx, cy = x + w // 2, y + h // 2
+            
+            # Obtém profundidade se disponível
+            depth = None
+            if depth_frame is not None:
+                try:
+                    depth_value = depth_frame[cy, cx]
+                    if depth_value > 0:
+                        depth = float(depth_value * 0.001)  # converte para metros
+                except:
+                    pass
+            
+            detected_objects.append({
+                'bbox': (x, y, w, h),
+                'centroid': (cx, cy),
+                'area': int(area),
+                'depth': depth
+            })
+        
+        return detected_objects
+    
+    def update(self, detected_objects):
+        """Atualiza tracking dos objetos"""
+        # Se não há objetos detectados, incrementa contador de desaparecidos
+        if len(detected_objects) == 0:
+            for object_id in list(self.disappeared.keys()):
+                self.disappeared[object_id] += 1
+                if self.disappeared[object_id] > self.max_disappeared:
+                    del self.objects[object_id]
+                    del self.disappeared[object_id]
+            return self.get_tracked_objects()
+        
+        # Se não há objetos sendo rastreados, registra todos
+        if len(self.objects) == 0:
+            for obj in detected_objects:
+                self.register(obj)
+        else:
+            # Associa objetos detectados com objetos rastreados
+            object_ids = list(self.objects.keys())
+            object_centroids = list(self.objects.values())
+            
+            detected_centroids = [obj['centroid'] for obj in detected_objects]
+            
+            # Calcula distância entre centroides
+            D = distance.cdist(np.array(object_centroids), np.array(detected_centroids))
+            
+            # Encontra correspondências
+            rows = D.min(axis=1).argsort()
+            cols = D.argmin(axis=1)[rows]
+            
+            used_rows = set()
+            used_cols = set()
+            
+            for row, col in zip(rows, cols):
+                if row in used_rows or col in used_cols:
+                    continue
+                
+                if D[row, col] > 50:  # threshold de distância máxima
+                    continue
+                
+                object_id = object_ids[row]
+                self.objects[object_id] = detected_objects[col]
+                self.disappeared[object_id] = 0
+                
+                used_rows.add(row)
+                used_cols.add(col)
+            
+            # Marca objetos não associados como desaparecidos
+            unused_rows = set(range(D.shape[0])) - used_rows
+            for row in unused_rows:
+                object_id = object_ids[row]
+                self.disappeared[object_id] += 1
+                if self.disappeared[object_id] > self.max_disappeared:
+                    del self.objects[object_id]
+                    del self.disappeared[object_id]
+            
+            # Registra novos objetos
+            unused_cols = set(range(D.shape[1])) - used_cols
+            for col in unused_cols:
+                self.register(detected_objects[col])
+        
+        return self.get_tracked_objects()
+    
+    def register(self, obj):
+        """Registra novo objeto"""
+        self.objects[self.next_object_id] = obj
+        self.disappeared[self.next_object_id] = 0
+        self.next_object_id += 1
+    
+    def get_tracked_objects(self):
+        """Retorna lista de objetos rastreados"""
+        tracked = []
+        for object_id, obj_data in self.objects.items():
+            x, y, w, h = obj_data['bbox']
+            cx, cy = obj_data['centroid']
+            tracked.append({
+                'id': int(object_id),
+                'bbox': {'x': int(x), 'y': int(y), 'w': int(w), 'h': int(h)},
+                'centroid': {'x': int(cx), 'y': int(cy)},
+                'area': obj_data['area'],
+                'depth': obj_data.get('depth')
+            })
+        return tracked
+
+
 class ObstacleDetector:
     """Detecta obstáculos usando dados dos sensores"""
     
@@ -413,6 +563,7 @@ class WebSocketServer:
         self.sensors = realsense_controller
         self.detector = obstacle_detector
         self.navigator = navigator
+        self.tracker = ObjectTracker()
         self.clients = set()
         self.autonomous_mode = False
         self.running = True
@@ -514,8 +665,16 @@ class WebSocketServer:
                 'height_obstacles': height_obstacles
             }
             
-            # Envia frame da câmera (comprimido)
+            # Tracking de objetos e envio do frame da câmera
             if color_image is not None:
+                # Detecta e rastreia objetos
+                detected = self.tracker.detect_objects(color_image, camera_depth)
+                tracked_objects = self.tracker.update(detected)
+                
+                if tracked_objects:
+                    message['tracked_objects'] = tracked_objects
+                
+                # Envia frame da câmera (comprimido)
                 _, buffer = cv2.imencode('.jpg', color_image, [cv2.IMWRITE_JPEG_QUALITY, 50])
                 image_base64 = base64.b64encode(buffer).decode('utf-8')
                 message['camera'] = image_base64

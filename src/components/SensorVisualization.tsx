@@ -14,13 +14,30 @@ interface ObstacleData {
   };
 }
 
+interface TrackedObject {
+  id: number;
+  bbox: {
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+  };
+  centroid: {
+    x: number;
+    y: number;
+  };
+  area: number;
+  depth?: number;
+}
+
 interface SensorVisualizationProps {
   cameraImage?: string;
   groundObstacles?: ObstacleData;
   heightObstacles?: ObstacleData;
+  trackedObjects?: TrackedObject[];
 }
 
-export const SensorVisualization = ({ cameraImage, groundObstacles, heightObstacles }: SensorVisualizationProps) => {
+export const SensorVisualization = ({ cameraImage, groundObstacles, heightObstacles, trackedObjects }: SensorVisualizationProps) => {
   const renderObstacleSector = (sector: 'left' | 'center' | 'right', obstacles: ObstacleData | undefined) => {
     const sectorName = sector === 'left' ? 'Esquerda' : sector === 'center' ? 'Centro' : 'Direita';
     const hasObstacle = obstacles?.[sector];
@@ -49,17 +66,71 @@ export const SensorVisualization = ({ cameraImage, groundObstacles, heightObstac
 
   return (
     <div className="space-y-4">
-      {/* Camera Feed */}
+      {/* Camera Feed with Object Tracking */}
       <Card className="p-4">
-        <h3 className="text-lg font-semibold mb-2">📹 Câmera D435 (Superior)</h3>
-        <p className="text-xs text-muted-foreground mb-3">Detecta objetos altos</p>
-        <div className="aspect-video bg-secondary rounded-lg overflow-hidden">
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-lg font-semibold">📹 Câmera D435 (Superior)</h3>
+          {trackedObjects && trackedObjects.length > 0 && (
+            <Badge variant="default">{trackedObjects.length} objeto(s)</Badge>
+          )}
+        </div>
+        <p className="text-xs text-muted-foreground mb-3">Tracking de objetos em tempo real</p>
+        <div className="aspect-video bg-secondary rounded-lg overflow-hidden relative">
           {cameraImage ? (
-            <img 
-              src={`data:image/jpeg;base64,${cameraImage}`} 
-              alt="Camera feed"
-              className="w-full h-full object-cover"
-            />
+            <>
+              <img 
+                src={`data:image/jpeg;base64,${cameraImage}`} 
+                alt="Camera feed"
+                className="w-full h-full object-cover"
+              />
+              {/* Overlay com objetos rastreados */}
+              <svg 
+                className="absolute inset-0 w-full h-full pointer-events-none"
+                viewBox="0 0 640 480"
+                preserveAspectRatio="none"
+              >
+                {trackedObjects?.map((obj) => (
+                  <g key={obj.id}>
+                    {/* Bounding box */}
+                    <rect
+                      x={obj.bbox.x}
+                      y={obj.bbox.y}
+                      width={obj.bbox.w}
+                      height={obj.bbox.h}
+                      fill="none"
+                      stroke="hsl(var(--primary))"
+                      strokeWidth="2"
+                      className="animate-pulse"
+                    />
+                    {/* Label */}
+                    <rect
+                      x={obj.bbox.x}
+                      y={obj.bbox.y - 24}
+                      width={obj.depth ? 90 : 50}
+                      height="20"
+                      fill="hsl(var(--primary))"
+                      opacity="0.9"
+                    />
+                    <text
+                      x={obj.bbox.x + 5}
+                      y={obj.bbox.y - 10}
+                      fill="hsl(var(--primary-foreground))"
+                      fontSize="12"
+                      fontWeight="bold"
+                    >
+                      ID:{obj.id} {obj.depth && `${obj.depth.toFixed(2)}m`}
+                    </text>
+                    {/* Centroide */}
+                    <circle
+                      cx={obj.centroid.x}
+                      cy={obj.centroid.y}
+                      r="3"
+                      fill="hsl(var(--accent))"
+                    />
+                  </g>
+                ))}
+              </svg>
+            </>
           ) : (
             <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
               Aguardando dados da câmera...
