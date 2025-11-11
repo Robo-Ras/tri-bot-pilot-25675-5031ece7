@@ -41,13 +41,15 @@ export const SerialConnectionControl = ({
   };
 
   useEffect(() => {
-    if (wsRef.current) {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       const handleMessage = (event: MessageEvent) => {
         const data = JSON.parse(event.data);
         
         if (data.type === 'ports_list') {
+          console.log('Portas recebidas:', data.ports);
           setPorts(data.ports || []);
         } else if (data.type === 'serial_status') {
+          console.log('Status serial:', data.connected, data.port);
           onConnectionChange(data.connected);
         }
       };
@@ -55,13 +57,13 @@ export const SerialConnectionControl = ({
       wsRef.current.addEventListener('message', handleMessage);
       
       // Request ports on mount
-      refreshPorts();
+      setTimeout(() => refreshPorts(), 500);
 
       return () => {
         wsRef.current?.removeEventListener('message', handleMessage);
       };
     }
-  }, [wsRef.current]);
+  }, [wsRef.current, wsRef.current?.readyState]);
 
   return (
     <Card>

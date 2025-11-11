@@ -763,8 +763,34 @@ class RobotController:
     
     def get_available_ports(self):
         """Lista portas seriais disponíveis"""
-        ports = serial.tools.list_ports.comports()
-        return [port.device for port in ports]
+        try:
+            ports = serial.tools.list_ports.comports()
+            port_list = []
+            
+            print("\n=== Buscando Portas Seriais ===")
+            if not ports:
+                print("✗ Nenhuma porta serial encontrada!")
+                print("  Verifique se o Arduino está conectado via USB")
+                print("  No Linux, execute: ls -la /dev/ttyACM* /dev/ttyUSB*")
+                print("  Pode ser necessário adicionar seu usuário ao grupo 'dialout':")
+                print("  sudo usermod -a -G dialout $USER")
+                print("  (depois, faça logout e login novamente)")
+                return []
+            
+            for port in ports:
+                print(f"  ✓ Encontrada: {port.device}")
+                print(f"    Descrição: {port.description}")
+                print(f"    Fabricante: {port.manufacturer if port.manufacturer else 'N/A'}")
+                port_list.append(port.device)
+            
+            print(f"\nTotal: {len(port_list)} porta(s) disponível(is)")
+            return port_list
+            
+        except Exception as e:
+            print(f"✗ Erro ao listar portas: {e}")
+            import traceback
+            traceback.print_exc()
+            return []
 
 
 class WebSocketServer:
@@ -814,13 +840,20 @@ class WebSocketServer:
         
         if cmd_type == 'discover_ports':
             # Descobre portas seriais disponíveis
+            print("\n📡 Requisição de descoberta de portas recebida")
             ports = self.robot.get_available_ports()
+            print(f"   Enviando {len(ports)} porta(s) para o cliente\n")
             await self.send_to_all({'type': 'ports_list', 'ports': ports})
             
         elif cmd_type == 'connect_serial':
             # Conecta ao Arduino na porta especificada
             port = data.get('port')
+            print(f"\n🔌 Tentando conectar ao Arduino na porta {port}...")
             success = self.robot.connect(port)
+            if success:
+                print(f"   ✓ Arduino conectado com sucesso em {port}")
+            else:
+                print(f"   ✗ Falha ao conectar ao Arduino em {port}")
             await self.send_to_all({
                 'type': 'serial_status', 
                 'connected': success,
