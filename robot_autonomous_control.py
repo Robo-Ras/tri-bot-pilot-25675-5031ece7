@@ -329,7 +329,7 @@ class ObjectTracker:
         self.max_distance = max_distance  # Distância máxima em metros
         self.min_distance = min_distance  # Distância mínima em metros
         
-    def detect_objects(self, frame, depth_frame=None):
+    def detect_objects(self, depth_frame):
         """Detecta objetos usando APENAS dados de profundidade"""
         if depth_frame is None:
             return []
@@ -775,8 +775,8 @@ class WebSocketServer:
                 
                 # Tracking de objetos e envio do frame da câmera
                 if color_image is not None:
-                    # Detecta e rastreia objetos
-                    detected = self.tracker.detect_objects(color_image, camera_depth)
+                    # Detecta e rastreia objetos usando dados de profundidade
+                    detected = self.tracker.detect_objects(camera_depth)
                     tracked_objects = self.tracker.update(detected)
                     
                     if tracked_objects:
