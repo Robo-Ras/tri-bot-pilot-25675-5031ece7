@@ -118,11 +118,20 @@ class RealSenseController:
             print(f"    Serial: {serial}")
             print(f"    Linha: {product_line}")
             
-            # Identifica L515 (LiDAR)
-            is_lidar = any(x in name for x in ['L515', 'L5']) or 'L500' in product_line or 'LIDAR' in name
+            # Identifica L515 (LiDAR) - critérios mais amplos
+            is_lidar = any([
+                'L515' in name,
+                'L5' in name and len(name) < 20,
+                'L500' in product_line,
+                'LIDAR' in name.upper()
+            ])
             
             # Identifica D435 (Câmera)
-            is_camera = any(x in name for x in ['D435', 'D4']) or 'D400' in product_line
+            is_camera = any([
+                'D435' in name,
+                'D4' in name and len(name) < 20,
+                'D400' in product_line
+            ])
             
             if is_lidar:
                 self.lidar_serial = serial
@@ -136,14 +145,35 @@ class RealSenseController:
                 print(f"    >>> TIPO DESCONHECIDO <<<")
         
         # Fallback se não conseguiu identificar especificamente
-        if not self.lidar_serial and len(devices) > 0:
-            self.lidar_serial = devices[0]['serial']
-            print(f"\n⚠ ATENÇÃO: Usando {devices[0]['name']} como LiDAR (fallback)")
-            print(f"  Se este não for o L515, desconecte outros sensores")
-        
-        if not self.camera_serial and len(devices) > 1:
-            self.camera_serial = devices[1]['serial']
-            print(f"\n⚠ ATENÇÃO: Usando {devices[1]['name']} como Câmera (fallback)")
+        if not self.lidar_serial and not self.camera_serial and len(devices) > 0:
+            print(f"\n⚠ NENHUM DISPOSITIVO IDENTIFICADO AUTOMATICAMENTE")
+            print(f"  Usando fallback: tentando atribuir dispositivos...")
+            
+            # Tenta atribuir baseado na ordem
+            if len(devices) == 1:
+                # Apenas 1 dispositivo - usa como câmera (mais comum)
+                self.camera_serial = devices[0]['serial']
+                print(f"  Usando {devices[0]['name']} como CÂMERA (único dispositivo)")
+            elif len(devices) >= 2:
+                # 2 ou mais dispositivos
+                self.lidar_serial = devices[0]['serial']
+                self.camera_serial = devices[1]['serial']
+                print(f"  Usando {devices[0]['name']} como LiDAR (primeiro)")
+                print(f"  Usando {devices[1]['name']} como CÂMERA (segundo)")
+        elif not self.camera_serial and len(devices) > 0:
+            # Tem LiDAR mas não tem câmera
+            for dev in devices:
+                if dev['serial'] != self.lidar_serial:
+                    self.camera_serial = dev['serial']
+                    print(f"\n⚠ Usando {dev['name']} como CÂMERA (fallback)")
+                    break
+        elif not self.lidar_serial and len(devices) > 0:
+            # Tem câmera mas não tem LiDAR
+            for dev in devices:
+                if dev['serial'] != self.camera_serial:
+                    self.lidar_serial = dev['serial']
+                    print(f"\n⚠ Usando {dev['name']} como LiDAR (fallback)")
+                    break
         
         print("\n" + "="*60)
         print("RESUMO DA CONFIGURAÇÃO:")

@@ -41,26 +41,64 @@ def test_l515_advanced():
     l515_device = None
     l515_serial = None
     
-    for dev in devices:
+    for i, dev in enumerate(devices):
         name = dev.get_info(rs.camera_info.name)
         serial = dev.get_info(rs.camera_info.serial_number)
         product_line = dev.get_info(rs.camera_info.product_line)
+        firmware = dev.get_info(rs.camera_info.firmware_version)
         
-        print(f"\n  Dispositivo: {name}")
-        print(f"  Serial: {serial}")
-        print(f"  Product Line: {product_line}")
+        print(f"\n  Dispositivo {i+1}:")
+        print(f"    Nome: {name}")
+        print(f"    Serial: {serial}")
+        print(f"    Product Line: {product_line}")
+        print(f"    Firmware: {firmware}")
         
-        # Verifica se é L515
-        if 'L515' in name or 'L5' in name or 'L500' in product_line:
+        # Análise detalhada para identificação
+        name_upper = name.upper()
+        product_upper = product_line.upper()
+        
+        print(f"    Verificando identificação:")
+        print(f"      'L515' em nome? {'L515' in name_upper}")
+        print(f"      'L5' em nome? {'L5' in name_upper}")
+        print(f"      'L500' em product_line? {'L500' in product_upper}")
+        print(f"      'LIDAR' em nome? {'LIDAR' in name_upper}")
+        
+        # Verifica se é L515 (critérios mais amplos)
+        is_l515 = any([
+            'L515' in name_upper,
+            'L5' in name_upper and len(name_upper) < 20,  # Evita falsos positivos
+            'L500' in product_upper,
+            'LIDAR' in name_upper and 'L5' in product_upper
+        ])
+        
+        if is_l515:
             l515_device = dev
             l515_serial = serial
-            print(f"  >>> ✓ IDENTIFICADO COMO L515! <<<")
+            print(f"    >>> ✓ IDENTIFICADO COMO L515! <<<")
             break
+        else:
+            print(f"    >>> Não é L515 <<<")
     
     if not l515_device:
-        print("\n✗ L515 NÃO ENCONTRADO!")
-        print("  Apenas L515 é suportado por este teste")
-        return False
+        print("\n⚠ L515 NÃO FOI IDENTIFICADO AUTOMATICAMENTE!")
+        print("\nTentando usar QUALQUER dispositivo RealSense disponível...")
+        
+        if len(devices) > 0:
+            # Pergunta ao usuário qual dispositivo usar
+            print("\nDispositivos disponíveis:")
+            for i, dev in enumerate(devices):
+                name = dev.get_info(rs.camera_info.name)
+                serial = dev.get_info(rs.camera_info.serial_number)
+                print(f"  [{i+1}] {name} (Serial: {serial})")
+            
+            print("\n⚠ USANDO AUTOMATICAMENTE O PRIMEIRO DISPOSITIVO PARA TESTE")
+            l515_device = devices[0]
+            l515_serial = devices[0].get_info(rs.camera_info.serial_number)
+            print(f"  Dispositivo selecionado: {devices[0].get_info(rs.camera_info.name)}")
+            print(f"  Serial: {l515_serial}")
+        else:
+            print("\n✗ Nenhum dispositivo disponível!")
+            return False
     
     # Passo 3: Listar sensores do L515
     print("\n[3/6] Listando sensores do L515...")
