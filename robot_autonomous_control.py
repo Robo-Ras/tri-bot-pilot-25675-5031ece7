@@ -688,7 +688,7 @@ class ObstacleDetector:
         return obstacles
     
     def analyze_height(self, depth_image):
-        """Analisa dados da câmera para verificar obstáculos - MODO SENSÍVEL"""
+        """Analisa dados da câmera D435 para detectar e desviar de objetos"""
         if depth_image is None:
             return None
         
@@ -698,44 +698,49 @@ class ObstacleDetector:
         # Analisa a região central da imagem (onde obstáculos são mais relevantes)
         height, width = depth_meters.shape
         
-        # Região de interesse: metade superior e central
-        roi_height = int(height * 0.7)  # 70% da altura
-        roi_width = int(width * 0.9)    # 90% da largura
+        # Região de interesse: área central ampla para detecção
+        roi_height = int(height * 0.8)  # 80% da altura
+        roi_width = int(width * 0.95)   # 95% da largura
         margin_h = (height - roi_height) // 2
         margin_w = (width - roi_width) // 2
         
         roi = depth_meters[margin_h:margin_h+roi_height, margin_w:margin_w+roi_width]
         
-        # Divide em setores
+        # Divide em setores para navegação
         _, roi_width = roi.shape
         left_sector = roi[:, :roi_width//3]
         center_sector = roi[:, roi_width//3:2*roi_width//3]
         right_sector = roi[:, 2*roi_width//3:]
         
-        # Detecta objetos próximos (distância de segurança)
-        safe_distance = 1.2  # 1.2 metros - mais sensível
+        # DISTÂNCIA DE SEGURANÇA para navegação autônoma
+        safe_distance = 1.5  # 1.5 metros - distância segura para desvio
         
         # Filtra valores válidos em cada setor
-        left_valid = left_sector[(left_sector > 0.1) & (left_sector < 10)]
-        center_valid = center_sector[(center_sector > 0.1) & (center_sector < 10)]
-        right_valid = right_sector[(right_sector > 0.1) & (right_sector < 10)]
+        left_valid = left_sector[(left_sector > 0.2) & (left_sector < 8)]
+        center_valid = center_sector[(center_sector > 0.2) & (center_sector < 8)]
+        right_valid = right_sector[(right_sector > 0.2) & (right_sector < 8)]
         
         # Calcula distância mínima em cada setor
-        left_min = np.min(left_valid) if len(left_valid) > 100 else 10.0
-        center_min = np.min(center_valid) if len(center_valid) > 100 else 10.0
-        right_min = np.min(right_valid) if len(right_valid) > 100 else 10.0
+        left_min = np.min(left_valid) if len(left_valid) > 50 else 10.0
+        center_min = np.min(center_valid) if len(center_valid) > 50 else 10.0
+        right_min = np.min(right_valid) if len(right_valid) > 50 else 10.0
         
-        # Detecta obstáculos (true se muito próximo)
+        # Detecta obstáculos (true se dentro da distância de segurança)
+        left_blocked = bool(left_min < safe_distance)
+        center_blocked = bool(center_min < safe_distance)
+        right_blocked = bool(right_min < safe_distance)
+        
         height_obstacles = {
-            'type': 'camera_depth',
-            'left': bool(left_min < safe_distance),
-            'center': bool(center_min < safe_distance),
-            'right': bool(right_min < safe_distance),
+            'type': 'camera_object_detection',
+            'left': left_blocked,
+            'center': center_blocked,
+            'right': right_blocked,
             'distances': {
                 'left': float(left_min),
                 'center': float(center_min),
                 'right': float(right_min)
-            }
+            },
+            'sensor': 'D435'
         }
         
         return height_obstacles
@@ -749,12 +754,18 @@ class AutonomousNavigator:
         self.current_state = 'idle'
         
     def decide_movement(self, ground_obstacles, height_obstacles):
-        """Decide o movimento baseado nos obstáculos (funciona com apenas um sensor)"""
+        """Decide movimento baseado em objetos detectados pela câmera D435"""
         # Combina informações de ambos os sensores (ou usa apenas o disponível)
         obstacles_combined = {
             'left': False,
             'center': False,
             'right': False
+        }
+        
+        distances = {
+            'left': 10.0,
+            'center': 10.0,
+            'right': 10.0
         }
         
         # Identifica modo de operação
@@ -771,40 +782,56 @@ class AutonomousNavigator:
             obstacles_combined['left'] |= ground_obstacles['left']
             obstacles_combined['center'] |= ground_obstacles['center']
             obstacles_combined['right'] |= ground_obstacles['right']
+            distances['left'] = min(distances['left'], ground_obstacles['distances']['left'])
+            distances['center'] = min(distances['center'], ground_obstacles['distances']['center'])
+            distances['right'] = min(distances['right'], ground_obstacles['distances']['right'])
         
-        # Usa dados da câmera se disponível
+        # Usa dados da câmera D435 para detectar objetos
         if height_obstacles:
             obstacles_combined['left'] |= height_obstacles['left']
             obstacles_combined['center'] |= height_obstacles['center']
             obstacles_combined['right'] |= height_obstacles['right']
+            distances['left'] = min(distances['left'], height_obstacles['distances']['left'])
+            distances['center'] = min(distances['center'], height_obstacles['distances']['center'])
+            distances['right'] = min(distances['right'], height_obstacles['distances']['right'])
         
         # Se não tem nenhum sensor ativo, retorna parado
         if not ground_obstacles and not height_obstacles:
             print("⚠ Nenhum sensor ativo - mantendo parado")
-            return 'stop', 0
+            return 'stop', 0, {}
         
+        # Log detalhado da detecção
+        detection_info = {
+            'mode': sensor_mode,
+            'obstacles': obstacles_combined.copy(),
+            'distances': distances.copy()
+        }
         
         # Decisão de movimento baseada nos obstáculos detectados
         if sensor_mode == "camera":
-            print(f"[MODO CÂMERA] ", end="")
+            print(f"🎥 [CÂMERA D435] ", end="")
         elif sensor_mode == "lidar":
-            print(f"[MODO LIDAR] ", end="")
+            print(f"📡 [LIDAR L515] ", end="")
+        else:
+            print(f"🎥📡 [DUAL] ", end="")
         
+        # Lógica de navegação
         if not obstacles_combined['center']:
             # Caminho livre à frente - avançar
-            return 'forward', 150
+            print(f"➡️ Livre! Avançando (dist: {distances['center']:.2f}m)")
+            return 'forward', 150, detection_info
         elif not obstacles_combined['right']:
             # Obstáculo no centro, desviar para direita
-            print("↪ Desviando para direita")
-            return 'right', 120
+            print(f"↪ OBJETO DETECTADO! Desviando direita (dist centro: {distances['center']:.2f}m)")
+            return 'right', 120, detection_info
         elif not obstacles_combined['left']:
             # Obstáculo no centro e direita, desviar para esquerda
-            print("↩ Desviando para esquerda")
-            return 'left', 120
+            print(f"↩ OBJETO DETECTADO! Desviando esquerda (dist centro: {distances['center']:.2f}m)")
+            return 'left', 120, detection_info
         else:
             # Obstáculos em todos os lados - recuar
-            print("⬅ Recuando")
-            return 'backward', 100
+            print(f"⬅ OBJETOS EM VOLTA! Recuando")
+            return 'backward', 100, detection_info
 
 
 class RobotController:
@@ -1001,33 +1028,53 @@ class WebSocketServer:
                 if camera_depth is not None:
                     height_obstacles = self.detector.analyze_height(camera_depth)
                 
-                # Navegação autônoma - funciona mesmo sem LiDAR
+                # Navegação autônoma - detecção de objetos pela câmera D435
+                navigation_status = None
                 if self.autonomous_mode:
                     # Se tem pelo menos um sensor com dados de obstáculos
                     if ground_obstacles or height_obstacles:
                         # Indica modo de operação (apenas primeira vez ou a cada 50 frames)
                         if frame_count == 1 or frame_count % 50 == 0:
                             if height_obstacles and not ground_obstacles:
-                                print("\n🎥 [MODO AUTÔNOMO] Navegando apenas com câmera D435")
+                                print("\n🎥 [NAVEGAÇÃO AUTÔNOMA ATIVA] Detectando objetos com câmera D435")
+                                print("   ↳ Desviando automaticamente de obstáculos")
                             elif ground_obstacles and not height_obstacles:
-                                print("\n📡 [MODO AUTÔNOMO] Navegando apenas com LiDAR L515")
+                                print("\n📡 [NAVEGAÇÃO AUTÔNOMA ATIVA] Detectando obstáculos com LiDAR L515")
                             else:
-                                print("\n🎥📡 [MODO AUTÔNOMO] Navegando com câmera + LiDAR")
+                                print("\n🎥📡 [NAVEGAÇÃO AUTÔNOMA ATIVA] Sensores combinados")
                         
-                        direction, speed = self.navigator.decide_movement(ground_obstacles, height_obstacles)
+                        direction, speed, detection_info = self.navigator.decide_movement(ground_obstacles, height_obstacles)
                         self.robot.move(direction, speed)
+                        
+                        # Cria status de navegação para interface
+                        navigation_status = {
+                            'active': True,
+                            'direction': direction,
+                            'speed': speed,
+                            'detection': detection_info
+                        }
                     else:
                         # Sem sensores ativos no modo autônomo - para por segurança
                         if frame_count % 20 == 0:
                             print("⚠ Modo autônomo ativo mas nenhum sensor com dados - parado")
                         self.robot.move('stop', 0)
+                        navigation_status = {
+                            'active': False,
+                            'reason': 'no_sensor_data'
+                        }
+                else:
+                    navigation_status = {
+                        'active': False,
+                        'reason': 'manual_mode'
+                    }
                 
                 # Prepara dados para enviar
                 message = {
                     'type': 'sensor_data',
                     'timestamp': asyncio.get_event_loop().time(),
                     'ground_obstacles': ground_obstacles,
-                    'height_obstacles': height_obstacles
+                    'height_obstacles': height_obstacles,
+                    'navigation_status': navigation_status
                 }
                 
                 # Envia frame do LiDAR como imagem de profundidade

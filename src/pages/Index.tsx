@@ -17,6 +17,7 @@ const Index = () => {
   const [groundObstacles, setGroundObstacles] = useState<any>();
   const [heightObstacles, setHeightObstacles] = useState<any>();
   const [trackedObjects, setTrackedObjects] = useState<any>();
+  const [navigationStatus, setNavigationStatus] = useState<any>();
   const [availablePorts, setAvailablePorts] = useState<string[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
   const { toast } = useToast();
@@ -52,6 +53,9 @@ const Index = () => {
           }
           if (data.tracked_objects) {
             setTrackedObjects(data.tracked_objects);
+          }
+          if (data.navigation_status) {
+            setNavigationStatus(data.navigation_status);
           }
         } else if (data.type === 'ports_list') {
           console.log('✅ Lista de portas recebida:', data.ports);
@@ -205,6 +209,8 @@ const Index = () => {
           autonomousMode={autonomousMode}
           onToggleAutonomous={handleToggleAutonomous}
           onEmergencyStop={handleEmergencyStop}
+          navigationStatus={navigationStatus}
+          heightObstacles={heightObstacles}
         />
       </div>
 

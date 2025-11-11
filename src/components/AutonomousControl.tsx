@@ -11,6 +11,35 @@ interface AutonomousControlProps {
   autonomousMode: boolean;
   onToggleAutonomous: (enabled: boolean) => void;
   onEmergencyStop: () => void;
+  navigationStatus?: {
+    active: boolean;
+    direction?: string;
+    speed?: number;
+    detection?: {
+      mode?: string;
+      obstacles?: {
+        left: boolean;
+        center: boolean;
+        right: boolean;
+      };
+      distances?: {
+        left: number;
+        center: number;
+        right: number;
+      };
+    };
+    reason?: string;
+  };
+  heightObstacles?: {
+    left: boolean;
+    center: boolean;
+    right: boolean;
+    distances: {
+      left: number;
+      center: number;
+      right: number;
+    };
+  };
 }
 
 export const AutonomousControl = ({
@@ -18,6 +47,8 @@ export const AutonomousControl = ({
   autonomousMode,
   onToggleAutonomous,
   onEmergencyStop,
+  navigationStatus,
+  heightObstacles,
 }: AutonomousControlProps) => {
   return (
     <Card className="p-6">
@@ -50,7 +81,7 @@ export const AutonomousControl = ({
                 Modo Autônomo
               </Label>
               <p className="text-sm text-muted-foreground">
-                O robô desviará automaticamente de obstáculos
+                O robô desviará automaticamente de objetos detectados pela câmera
               </p>
             </div>
             <Switch
@@ -71,11 +102,65 @@ export const AutonomousControl = ({
               {autonomousMode ? (
                 <>
                   <Bot className="w-6 h-6 text-primary" />
-                  <div>
+                  <div className="flex-1">
                     <div className="font-semibold">Navegação Autônoma Ativa</div>
                     <div className="text-sm text-muted-foreground">
-                      O robô está navegando autonomamente usando sensores
+                      Detectando objetos com câmera D435 e desviando
                     </div>
+                    
+                    {/* Navigation Status */}
+                    {navigationStatus?.active && navigationStatus.detection && (
+                      <div className="mt-3 p-3 rounded bg-background/50 border border-border">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs font-semibold uppercase tracking-wide">
+                            🎥 Detecção Ativa
+                          </span>
+                          <Badge variant="outline" className="text-xs">
+                            {navigationStatus.direction === 'forward' && '➡️ Avançando'}
+                            {navigationStatus.direction === 'backward' && '⬅ Recuando'}
+                            {navigationStatus.direction === 'left' && '↩ Esquerda'}
+                            {navigationStatus.direction === 'right' && '↪ Direita'}
+                            {navigationStatus.direction === 'stop' && '⏸ Parado'}
+                          </Badge>
+                        </div>
+                        
+                        {/* Obstacle Status */}
+                        {navigationStatus.detection.obstacles && (
+                          <div className="grid grid-cols-3 gap-2 mt-2">
+                            <div className={`p-2 rounded text-center text-xs ${
+                              navigationStatus.detection.obstacles.left 
+                                ? 'bg-destructive/20 text-destructive' 
+                                : 'bg-green-500/20 text-green-600'
+                            }`}>
+                              <div className="font-bold">Esquerda</div>
+                              <div className="text-xs opacity-70">
+                                {navigationStatus.detection.distances?.left.toFixed(1)}m
+                              </div>
+                            </div>
+                            <div className={`p-2 rounded text-center text-xs ${
+                              navigationStatus.detection.obstacles.center 
+                                ? 'bg-destructive/20 text-destructive' 
+                                : 'bg-green-500/20 text-green-600'
+                            }`}>
+                              <div className="font-bold">Centro</div>
+                              <div className="text-xs opacity-70">
+                                {navigationStatus.detection.distances?.center.toFixed(1)}m
+                              </div>
+                            </div>
+                            <div className={`p-2 rounded text-center text-xs ${
+                              navigationStatus.detection.obstacles.right 
+                                ? 'bg-destructive/20 text-destructive' 
+                                : 'bg-green-500/20 text-green-600'
+                            }`}>
+                              <div className="font-bold">Direita</div>
+                              <div className="text-xs opacity-70">
+                                {navigationStatus.detection.distances?.right.toFixed(1)}m
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </>
               ) : (
