@@ -387,9 +387,27 @@ class RealSenseController:
         print("STATUS FINAL:")
         print(f"  LiDAR: {'✓ FUNCIONANDO' if self.lidar_started else '✗ OFFLINE'}")
         print(f"  Câmera: {'✓ FUNCIONANDO' if self.camera_started else '✗ OFFLINE'}")
+        
+        # Mensagem especial se operando apenas com câmera
+        if self.camera_started and not self.lidar_started:
+            print(f"\n⚠️  MODO: NAVEGAÇÃO APENAS COM CÂMERA D435")
+            print(f"  ↳ Detecção de obstáculos baseada em profundidade da câmera")
+            print(f"  ↳ LiDAR offline - sistema funcionará sem ele")
+        elif self.lidar_started and not self.camera_started:
+            print(f"\n⚠️  MODO: NAVEGAÇÃO APENAS COM LIDAR L515")
+            print(f"  ↳ Câmera offline - sistema funcionará sem ela")
+        
         print(f"{'='*50}\n")
         
-        return self.lidar_started or self.camera_started
+        # Permite iniciar com apenas um sensor
+        if self.camera_started or self.lidar_started:
+            if self.camera_started:
+                print("✓✓✓ SISTEMA PRONTO PARA NAVEGAÇÃO AUTÔNOMA")
+                print("    Usando câmera D435 para detecção de obstáculos")
+            return True
+        else:
+            print("✗✗✗ FALHA: Nenhum sensor disponível para navegação")
+            return False
     
     def get_lidar_data(self):
         """Obtém dados do LiDAR (obstáculos no chão)"""
@@ -739,6 +757,15 @@ class AutonomousNavigator:
             'right': False
         }
         
+        # Identifica modo de operação
+        sensor_mode = None
+        if ground_obstacles and height_obstacles:
+            sensor_mode = "lidar+camera"
+        elif ground_obstacles:
+            sensor_mode = "lidar"
+        elif height_obstacles:
+            sensor_mode = "camera"
+        
         # Usa dados do LiDAR se disponível
         if ground_obstacles:
             obstacles_combined['left'] |= ground_obstacles['left']
@@ -756,7 +783,13 @@ class AutonomousNavigator:
             print("⚠ Nenhum sensor ativo - mantendo parado")
             return 'stop', 0
         
+        
         # Decisão de movimento baseada nos obstáculos detectados
+        if sensor_mode == "camera":
+            print(f"[MODO CÂMERA] ", end="")
+        elif sensor_mode == "lidar":
+            print(f"[MODO LIDAR] ", end="")
+        
         if not obstacles_combined['center']:
             # Caminho livre à frente - avançar
             return 'forward', 150
@@ -972,10 +1005,21 @@ class WebSocketServer:
                 if self.autonomous_mode:
                     # Se tem pelo menos um sensor com dados de obstáculos
                     if ground_obstacles or height_obstacles:
+                        # Indica modo de operação (apenas primeira vez ou a cada 50 frames)
+                        if frame_count == 1 or frame_count % 50 == 0:
+                            if height_obstacles and not ground_obstacles:
+                                print("\n🎥 [MODO AUTÔNOMO] Navegando apenas com câmera D435")
+                            elif ground_obstacles and not height_obstacles:
+                                print("\n📡 [MODO AUTÔNOMO] Navegando apenas com LiDAR L515")
+                            else:
+                                print("\n🎥📡 [MODO AUTÔNOMO] Navegando com câmera + LiDAR")
+                        
                         direction, speed = self.navigator.decide_movement(ground_obstacles, height_obstacles)
                         self.robot.move(direction, speed)
                     else:
                         # Sem sensores ativos no modo autônomo - para por segurança
+                        if frame_count % 20 == 0:
+                            print("⚠ Modo autônomo ativo mas nenhum sensor com dados - parado")
                         self.robot.move('stop', 0)
                 
                 # Prepara dados para enviar
