@@ -90,66 +90,75 @@ class RealSenseController:
         devices = self.list_devices()
         
         if len(devices) == 0:
-            print("\n✗ ERRO: Nenhum dispositivo RealSense detectado!")
-            print("  Verifique:")
-            print("  1. Cabos USB estão conectados corretamente")
-            print("  2. Execute: lsusb | grep Intel")
-            print("  3. Verifique permissões: sudo chmod 666 /dev/video*")
-            print("  4. Reinstale drivers: sudo apt install librealsense2-dkms")
+            print("\n" + "="*60)
+            print("✗ ERRO CRÍTICO: Nenhum dispositivo RealSense detectado!")
+            print("="*60)
+            print("\nPASSOS PARA SOLUCIONAR:")
+            print("1. Verifique se os sensores estão conectados via USB 3.0")
+            print("2. Execute: lsusb | grep Intel")
+            print("   Você deve ver 'Intel Corp' na lista")
+            print("3. Verifique permissões: ls -la /dev/video*")
+            print("4. Se necessário: sudo chmod 666 /dev/video*")
+            print("5. Tente outro cabo ou porta USB")
+            print("6. Reinicie os sensores (desconecte e reconecte)")
+            print("="*60)
             return False
         
-        for dev in devices:
+        print("\n" + "="*60)
+        print(f"ANALISANDO {len(devices)} DISPOSITIVO(S) REALSENSE")
+        print("="*60)
+        
+        for i, dev in enumerate(devices):
             name = dev['name'].upper()
             product_line = dev.get('product_line', '').upper()
             serial = dev['serial']
             
-            print(f"\nAnalisando: {dev['name']}")
-            print(f"  Linha de Produto: {product_line}")
+            print(f"\n[{i+1}] Dispositivo encontrado:")
+            print(f"    Nome: {dev['name']}")
+            print(f"    Serial: {serial}")
+            print(f"    Linha: {product_line}")
             
-            # Busca por L515 usando múltiplos critérios
-            if any(x in name for x in ['L515', 'L5']) or 'L500' in product_line or 'LIDAR' in name:
+            # Identifica L515 (LiDAR)
+            is_lidar = any(x in name for x in ['L515', 'L5']) or 'L500' in product_line or 'LIDAR' in name
+            
+            # Identifica D435 (Câmera)
+            is_camera = any(x in name for x in ['D435', 'D4']) or 'D400' in product_line
+            
+            if is_lidar:
                 self.lidar_serial = serial
-                print(f"✓ LiDAR L515 identificado!")
-                print(f"  Nome: {dev['name']}")
-                print(f"  Serial: {serial}")
-            # Busca por D435 ou qualquer câmera RGB-D
-            elif any(x in name for x in ['D435', 'D4']) or 'D400' in product_line:
+                print(f"    >>> IDENTIFICADO COMO: LiDAR L515 <<<")
+                print(f"    Será usado para detecção de obstáculos no chão")
+            elif is_camera:
                 self.camera_serial = serial
-                print(f"✓ Câmera D435 identificada!")
-                print(f"  Nome: {dev['name']}")
-                print(f"  Serial: {serial}")
+                print(f"    >>> IDENTIFICADO COMO: Câmera D435 <<<")
+                print(f"    Será usada para detecção de altura e tracking")
+            else:
+                print(f"    >>> TIPO DESCONHECIDO <<<")
         
-        # Se não encontrou especificamente, tenta usar o que tem
+        # Fallback se não conseguiu identificar especificamente
         if not self.lidar_serial and len(devices) > 0:
             self.lidar_serial = devices[0]['serial']
-            print(f"\n⚠ FALLBACK: Usando {devices[0]['name']} como LiDAR")
-            print(f"  Se este não for o L515, reconecte o LiDAR corretamente")
+            print(f"\n⚠ ATENÇÃO: Usando {devices[0]['name']} como LiDAR (fallback)")
+            print(f"  Se este não for o L515, desconecte outros sensores")
         
         if not self.camera_serial and len(devices) > 1:
             self.camera_serial = devices[1]['serial']
-            print(f"\n⚠ FALLBACK: Usando {devices[1]['name']} como Câmera")
-        elif not self.camera_serial and len(devices) == 1:
-            # Se só tem um dispositivo, usa para ambos
-            self.camera_serial = devices[0]['serial']
-            print(f"\n⚠ FALLBACK: Usando {devices[0]['name']} como Câmera também")
-            print(f"  Conecte ambos os sensores para melhor resultado")
+            print(f"\n⚠ ATENÇÃO: Usando {devices[1]['name']} como Câmera (fallback)")
         
-        success = self.lidar_serial is not None or self.camera_serial is not None
+        print("\n" + "="*60)
+        print("RESUMO DA CONFIGURAÇÃO:")
+        if self.lidar_serial:
+            print(f"  ✓ LiDAR configurado: Serial {self.lidar_serial}")
+        else:
+            print("  ✗ LiDAR NÃO CONFIGURADO")
         
-        if success:
-            print(f"\n{'='*50}")
-            print("RESUMO DE DISPOSITIVOS:")
-            if self.lidar_serial:
-                print(f"  LiDAR: Serial {self.lidar_serial}")
-            else:
-                print("  LiDAR: NÃO CONECTADO ❌")
-            if self.camera_serial:
-                print(f"  Câmera: Serial {self.camera_serial}")
-            else:
-                print("  Câmera: NÃO CONECTADO ❌")
-            print(f"{'='*50}\n")
+        if self.camera_serial:
+            print(f"  ✓ Câmera configurada: Serial {self.camera_serial}")
+        else:
+            print("  ✗ Câmera NÃO CONFIGURADA")
+        print("="*60 + "\n")
         
-        return success
+        return self.lidar_serial is not None or self.camera_serial is not None
     
     def start(self):
         """Inicia os sensores"""
@@ -416,148 +425,99 @@ class RealSenseController:
 
 
 class ObjectTracker:
-    """Rastreia objetos detectados pela câmera usando dados de profundidade com alta precisão"""
+    """Rastreia objetos detectados pela câmera - versão simplificada e robusta"""
     
-    def __init__(self, max_disappeared=15, min_area=4000, max_distance=2.5, min_distance=0.4):
+    def __init__(self, max_disappeared=10, min_area=5000, max_distance=2.0, min_distance=0.5):
         self.next_object_id = 0
-        self.objects = {}  # {id: object_data}
-        self.disappeared = {}  # {id: frames_disappeared}
-        self.stability_counter = {}  # {id: frames_stable}
+        self.objects = {}
+        self.disappeared = {}
         self.max_disappeared = max_disappeared
-        self.min_stability = 3  # Objeto precisa aparecer em 3 frames para ser considerado válido
         self.min_area = min_area
         self.max_distance = max_distance
         self.min_distance = min_distance
         
     def detect_objects(self, depth_frame):
-        """Detecta objetos usando dados de profundidade com filtros avançados"""
+        """Detecta objetos usando segmentação simples por profundidade"""
         if depth_frame is None:
             return []
         
         detected_objects = []
         
         try:
-            # Converte profundidade para metros
+            # Converte para metros
             depth_meters = depth_frame.astype(np.float32) * 0.001
             
-            # Aplica filtro bilateral para suavizar mantendo bordas
-            depth_meters = cv2.bilateralFilter(depth_meters, 9, 75, 75)
+            # Filtra faixa de distância
+            mask = ((depth_meters > self.min_distance) & (depth_meters < self.max_distance)).astype(np.uint8) * 255
             
-            # Filtra apenas objetos na faixa de distância desejada
-            valid_mask = (depth_meters > self.min_distance) & (depth_meters < self.max_distance)
-            
-            # Cria máscara binária
-            mask = (valid_mask * 255).astype(np.uint8)
-            
-            # Remove ruído com operações morfológicas agressivas
-            kernel_small = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
-            kernel_large = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (11, 11))
-            
-            # Remove pequenos buracos
-            mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel_large, iterations=3)
-            # Remove pequenos objetos
-            mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel_small, iterations=2)
-            # Suaviza bordas
-            mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel_small)
+            # Limpa ruído - operações morfológicas simples
+            kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (15, 15))
+            mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+            mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
             
             # Encontra contornos
             contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
             
             for contour in contours:
                 area = cv2.contourArea(contour)
-                
-                # Filtra por área mínima
                 if area < self.min_area:
                     continue
                 
-                # Aproxima o contorno para remover ruído
-                epsilon = 0.02 * cv2.arcLength(contour, True)
-                approx = cv2.approxPolyDP(contour, epsilon, True)
+                x, y, w, h = cv2.boundingRect(contour)
                 
-                # Calcula bounding box
-                x, y, w, h = cv2.boundingRect(approx)
-                
-                # Filtra formas muito estranhas
-                aspect_ratio = w / float(h) if h > 0 else 0
-                if aspect_ratio > 3.5 or aspect_ratio < 0.3:
+                # Filtra proporções estranhas
+                aspect = w / float(h) if h > 0 else 0
+                if aspect > 3 or aspect < 0.3:
                     continue
                 
-                # Filtra objetos muito pequenos em relação ao bounding box (provavelmente ruído)
-                box_area = w * h
-                if area < (box_area * 0.3):  # Objeto preenche menos de 30% da box
+                # Centroide
+                cx = x + w // 2
+                cy = y + h // 2
+                
+                # Profundidade média robusta
+                depth_roi = depth_meters[y:y+h, x:x+w]
+                valid_depths = depth_roi[(depth_roi > self.min_distance) & (depth_roi < self.max_distance)]
+                
+                if len(valid_depths) < 50:
                     continue
                 
-                # Calcula centroide usando momentos
-                M = cv2.moments(approx)
-                if M["m00"] != 0:
-                    cx = int(M["m10"] / M["m00"])
-                    cy = int(M["m01"] / M["m00"])
-                else:
-                    cx, cy = x + w // 2, y + h // 2
-                
-                # Calcula profundidade usando múltiplas estatísticas
-                depth_region = depth_meters[y:y+h, x:x+w]
-                depth_valid = depth_region[(depth_region > self.min_distance) & (depth_region < self.max_distance)]
-                
-                if len(depth_valid) < 100:  # Precisa de pelo menos 100 pontos válidos
-                    continue
-                
-                # Usa percentil 25-75 para robustez contra outliers
-                depth_25 = float(np.percentile(depth_valid, 25))
-                depth_75 = float(np.percentile(depth_valid, 75))
-                depth = (depth_25 + depth_75) / 2.0
-                
-                # Calcula desvio padrão - objetos com muita variação são suspeitos
-                depth_std = float(np.std(depth_valid))
-                if depth_std > 0.3:  # Variação maior que 30cm é suspeita
-                    continue
+                depth = float(np.median(valid_depths))
                 
                 detected_objects.append({
                     'bbox': (x, y, w, h),
                     'centroid': (cx, cy),
                     'area': int(area),
-                    'depth': round(depth, 2),
-                    'depth_std': round(depth_std, 3)
+                    'depth': round(depth, 2)
                 })
         
         except Exception as e:
-            print(f"Erro na detecção de objetos: {e}")
-            return []
+            print(f"Erro na detecção: {e}")
         
         return detected_objects
     
     def update(self, detected_objects):
-        """Atualiza tracking dos objetos com filtro de estabilidade"""
-        # Se não há objetos detectados, incrementa contador de desaparecidos
+        """Atualiza tracking com associação simples"""
         if len(detected_objects) == 0:
-            for object_id in list(self.disappeared.keys()):
-                self.disappeared[object_id] += 1
-                if self.disappeared[object_id] > self.max_disappeared:
-                    del self.objects[object_id]
-                    del self.disappeared[object_id]
-                    if object_id in self.stability_counter:
-                        del self.stability_counter[object_id]
+            for obj_id in list(self.disappeared.keys()):
+                self.disappeared[obj_id] += 1
+                if self.disappeared[obj_id] > self.max_disappeared:
+                    del self.objects[obj_id]
+                    del self.disappeared[obj_id]
             return self.get_tracked_objects()
         
-        # Se não há objetos sendo rastreados, registra todos
         if len(self.objects) == 0:
             for obj in detected_objects:
-                self.register(obj)
+                self.objects[self.next_object_id] = obj
+                self.disappeared[self.next_object_id] = 0
+                self.next_object_id += 1
         else:
-            # Associa objetos detectados com objetos rastreados
             object_ids = list(self.objects.keys())
-            object_centroids = [obj['centroid'] for obj in self.objects.values()]
+            object_centroids = np.array([self.objects[oid]['centroid'] for oid in object_ids])
+            detected_centroids = np.array([obj['centroid'] for obj in detected_objects])
             
-            detected_centroids = [obj['centroid'] for obj in detected_objects]
+            # Distância euclidiana
+            D = distance.cdist(object_centroids, detected_centroids)
             
-            # Garante que arrays são 2D para cdist
-            object_centroids_array = np.array(object_centroids).reshape(-1, 2)
-            detected_centroids_array = np.array(detected_centroids).reshape(-1, 2)
-            
-            # Calcula distância entre centroides
-            D = distance.cdist(object_centroids_array, detected_centroids_array)
-            
-            # Encontra correspondências usando threshold menor (mais restritivo)
             rows = D.min(axis=1).argsort()
             cols = D.argmin(axis=1)[rows]
             
@@ -567,85 +527,43 @@ class ObjectTracker:
             for row, col in zip(rows, cols):
                 if row in used_rows or col in used_cols:
                     continue
-                
-                # Threshold mais restritivo - apenas 30 pixels
-                if D[row, col] > 30:
+                if D[row, col] > 100:  # 100 pixels
                     continue
                 
-                object_id = object_ids[row]
-                
-                # Atualiza objeto com suavização (média móvel)
-                old_obj = self.objects[object_id]
-                new_obj = detected_objects[col]
-                
-                # Suaviza posição e tamanho
-                alpha = 0.7  # Peso para nova detecção
-                old_x, old_y, old_w, old_h = old_obj['bbox']
-                new_x, new_y, new_w, new_h = new_obj['bbox']
-                
-                smoothed_x = int(alpha * new_x + (1 - alpha) * old_x)
-                smoothed_y = int(alpha * new_y + (1 - alpha) * old_y)
-                smoothed_w = int(alpha * new_w + (1 - alpha) * old_w)
-                smoothed_h = int(alpha * new_h + (1 - alpha) * old_h)
-                
-                new_obj['bbox'] = (smoothed_x, smoothed_y, smoothed_w, smoothed_h)
-                
-                # Suaviza profundidade
-                old_depth = old_obj.get('depth', new_obj['depth'])
-                new_obj['depth'] = round(alpha * new_obj['depth'] + (1 - alpha) * old_depth, 2)
-                
-                self.objects[object_id] = new_obj
-                self.disappeared[object_id] = 0
-                
-                # Incrementa estabilidade
-                if object_id in self.stability_counter:
-                    self.stability_counter[object_id] = min(self.stability_counter[object_id] + 1, 10)
-                
+                obj_id = object_ids[row]
+                self.objects[obj_id] = detected_objects[col]
+                self.disappeared[obj_id] = 0
                 used_rows.add(row)
                 used_cols.add(col)
             
-            # Marca objetos não associados como desaparecidos
-            unused_rows = set(range(D.shape[0])) - used_rows
-            for row in unused_rows:
-                object_id = object_ids[row]
-                self.disappeared[object_id] += 1
-                if self.disappeared[object_id] > self.max_disappeared:
-                    del self.objects[object_id]
-                    del self.disappeared[object_id]
-                    if object_id in self.stability_counter:
-                        del self.stability_counter[object_id]
+            # Marca desaparecidos
+            for row in set(range(D.shape[0])) - used_rows:
+                obj_id = object_ids[row]
+                self.disappeared[obj_id] += 1
+                if self.disappeared[obj_id] > self.max_disappeared:
+                    del self.objects[obj_id]
+                    del self.disappeared[obj_id]
             
-            # Registra novos objetos
-            unused_cols = set(range(D.shape[1])) - used_cols
-            for col in unused_cols:
-                self.register(detected_objects[col])
+            # Novos objetos
+            for col in set(range(D.shape[1])) - used_cols:
+                self.objects[self.next_object_id] = detected_objects[col]
+                self.disappeared[self.next_object_id] = 0
+                self.next_object_id += 1
         
         return self.get_tracked_objects()
     
-    def register(self, obj):
-        """Registra novo objeto"""
-        self.objects[self.next_object_id] = obj
-        self.disappeared[self.next_object_id] = 0
-        self.stability_counter[self.next_object_id] = 1
-        self.next_object_id += 1
-    
     def get_tracked_objects(self):
-        """Retorna lista de objetos rastreados (apenas os estáveis)"""
+        """Retorna objetos ativos"""
         tracked = []
-        for object_id, obj_data in self.objects.items():
-            # Apenas retorna objetos estáveis
-            if self.stability_counter.get(object_id, 0) < self.min_stability:
-                continue
-                
+        for obj_id, obj_data in self.objects.items():
             x, y, w, h = obj_data['bbox']
             cx, cy = obj_data['centroid']
             tracked.append({
-                'id': int(object_id),
+                'id': int(obj_id),
                 'bbox': {'x': int(x), 'y': int(y), 'w': int(w), 'h': int(h)},
                 'centroid': {'x': int(cx), 'y': int(cy)},
                 'area': obj_data['area'],
-                'depth': obj_data.get('depth'),
-                'stability': self.stability_counter.get(object_id, 0)
+                'depth': obj_data.get('depth')
             })
         return tracked
 
