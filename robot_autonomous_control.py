@@ -109,40 +109,50 @@ class RealSenseController:
         print("="*60)
         
         for i, dev in enumerate(devices):
-            name = dev['name'].upper()
-            product_line = dev.get('product_line', '').upper()
+            name = dev['name']
+            name_upper = name.upper()
+            product_line = dev.get('product_line', '')
+            product_upper = product_line.upper()
             serial = dev['serial']
             
             print(f"\n[{i+1}] Dispositivo encontrado:")
-            print(f"    Nome: {dev['name']}")
+            print(f"    Nome: {name}")
             print(f"    Serial: {serial}")
             print(f"    Linha: {product_line}")
             
-            # Identifica L515 (LiDAR) - critérios mais amplos
+            # Debug de identificação
+            print(f"    Análise:")
+            print(f"      'L515' em nome? {'L515' in name_upper}")
+            print(f"      'L5' em nome? {'L5' in name_upper}")
+            print(f"      'L500' em product_line? {'L500' in product_upper}")
+            print(f"      'LIDAR' em nome? {'LIDAR' in name_upper}")
+            
+            # Identifica L515 (LiDAR) - mesma lógica do test_lidar que funcionou
             is_lidar = any([
-                'L515' in name,
-                'L5' in name and len(name) < 20,
-                'L500' in product_line,
-                'LIDAR' in name.upper()
+                'L515' in name_upper,
+                'L5' in name_upper and len(name) < 20,
+                'L500' in product_upper,
+                'LIDAR' in name_upper and 'L5' in product_upper
             ])
             
             # Identifica D435 (Câmera)
             is_camera = any([
-                'D435' in name,
-                'D4' in name and len(name) < 20,
-                'D400' in product_line
+                'D435' in name_upper,
+                'D4' in name_upper and len(name) < 20,
+                'D400' in product_upper
             ])
             
             if is_lidar:
                 self.lidar_serial = serial
-                print(f"    >>> IDENTIFICADO COMO: LiDAR L515 <<<")
+                print(f"    >>> ✓ IDENTIFICADO COMO: LiDAR L515 <<<")
                 print(f"    Será usado para detecção de obstáculos no chão")
             elif is_camera:
                 self.camera_serial = serial
-                print(f"    >>> IDENTIFICADO COMO: Câmera D435 <<<")
+                print(f"    >>> ✓ IDENTIFICADO COMO: Câmera D435 <<<")
                 print(f"    Será usada para detecção de altura e tracking")
             else:
-                print(f"    >>> TIPO DESCONHECIDO <<<")
+                print(f"    >>> ⚠ TIPO DESCONHECIDO <<<")
+                print(f"    Será atribuído automaticamente no fallback")
         
         # Fallback se não conseguiu identificar especificamente
         if not self.lidar_serial and not self.camera_serial and len(devices) > 0:
