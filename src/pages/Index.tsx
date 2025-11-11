@@ -153,6 +153,31 @@ const Index = () => {
         Sistema de Controle Remoto com Navegação Autônoma
       </p>
       
+      {/* Connection Status */}
+      <div className="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* WebSocket Status */}
+        <div className={`p-4 rounded-lg border-2 ${isConnected ? 'bg-green-500/10 border-green-500' : 'bg-destructive/10 border-destructive'}`}>
+          <div className="flex items-center gap-2">
+            <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-destructive'}`} />
+            <span className="font-semibold">Servidor Python</span>
+          </div>
+          <p className="text-sm text-muted-foreground mt-1">
+            {isConnected ? 'Conectado (WebSocket)' : 'Desconectado - Execute robot_autonomous_control.py'}
+          </p>
+        </div>
+
+        {/* Arduino Status */}
+        <div className={`p-4 rounded-lg border-2 ${isArduinoConnected ? 'bg-green-500/10 border-green-500' : 'bg-muted/50 border-border'}`}>
+          <div className="flex items-center gap-2">
+            <div className={`w-3 h-3 rounded-full ${isArduinoConnected ? 'bg-green-500 animate-pulse' : 'bg-muted-foreground'}`} />
+            <span className="font-semibold">Arduino</span>
+          </div>
+          <p className="text-sm text-muted-foreground mt-1">
+            {isArduinoConnected ? 'Conectado' : 'Aguardando conexão'}
+          </p>
+        </div>
+      </div>
+
       {/* Arduino Connection */}
       <div className="mb-6">
         <SerialConnectionControl
