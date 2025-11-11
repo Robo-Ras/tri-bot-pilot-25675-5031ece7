@@ -651,56 +651,56 @@ class WebSocketServer:
                 
                 if camera_depth is not None:
                     height_obstacles = self.detector.analyze_height(camera_depth)
-            
-            # Navegação autônoma
-            if self.autonomous_mode and (ground_obstacles or height_obstacles):
-                direction, speed = self.navigator.decide_movement(ground_obstacles, height_obstacles)
-                self.robot.move(direction, speed)
-            
-            # Prepara dados para enviar
-            message = {
-                'type': 'sensor_data',
-                'timestamp': asyncio.get_event_loop().time(),
-                'ground_obstacles': ground_obstacles,
-                'height_obstacles': height_obstacles
-            }
-            
-            # Tracking de objetos e envio do frame da câmera
-            if color_image is not None:
-                # Detecta e rastreia objetos
-                detected = self.tracker.detect_objects(color_image, camera_depth)
-                tracked_objects = self.tracker.update(detected)
                 
-                if tracked_objects:
-                    message['tracked_objects'] = tracked_objects
+                # Navegação autônoma
+                if self.autonomous_mode and (ground_obstacles or height_obstacles):
+                    direction, speed = self.navigator.decide_movement(ground_obstacles, height_obstacles)
+                    self.robot.move(direction, speed)
                 
-                # Envia frame da câmera (comprimido)
-                _, buffer = cv2.imencode('.jpg', color_image, [cv2.IMWRITE_JPEG_QUALITY, 50])
-                image_base64 = base64.b64encode(buffer).decode('utf-8')
-                message['camera'] = image_base64
-            
-            # Reconstrução 3D a cada 10 frames
-            frame_count += 1
-            if frame_count % 10 == 0:
-                # Usa dados do LiDAR para reconstrução 3D
-                if lidar_data is not None:
-                    pcd = self.sensors.create_point_cloud(lidar_data, None)
-                    if pcd is not None:
-                        # Serializa nuvem de pontos simplificada
-                        points = np.asarray(pcd.points)
-                        colors = np.asarray(pcd.colors)
-                        
-                        # Amostragem para reduzir tamanho
-                        if len(points) > 1000:
-                            indices = np.random.choice(len(points), 1000, replace=False)
-                            points = points[indices]
-                            colors = colors[indices]
-                        
-                        message['point_cloud'] = {
-                            'points': points.tolist(),
-                            'colors': colors.tolist()
-                        }
-            
+                # Prepara dados para enviar
+                message = {
+                    'type': 'sensor_data',
+                    'timestamp': asyncio.get_event_loop().time(),
+                    'ground_obstacles': ground_obstacles,
+                    'height_obstacles': height_obstacles
+                }
+                
+                # Tracking de objetos e envio do frame da câmera
+                if color_image is not None:
+                    # Detecta e rastreia objetos
+                    detected = self.tracker.detect_objects(color_image, camera_depth)
+                    tracked_objects = self.tracker.update(detected)
+                    
+                    if tracked_objects:
+                        message['tracked_objects'] = tracked_objects
+                    
+                    # Envia frame da câmera (comprimido)
+                    _, buffer = cv2.imencode('.jpg', color_image, [cv2.IMWRITE_JPEG_QUALITY, 50])
+                    image_base64 = base64.b64encode(buffer).decode('utf-8')
+                    message['camera'] = image_base64
+                
+                # Reconstrução 3D a cada 10 frames
+                frame_count += 1
+                if frame_count % 10 == 0:
+                    # Usa dados do LiDAR para reconstrução 3D
+                    if lidar_data is not None:
+                        pcd = self.sensors.create_point_cloud(lidar_data, None)
+                        if pcd is not None:
+                            # Serializa nuvem de pontos simplificada
+                            points = np.asarray(pcd.points)
+                            colors = np.asarray(pcd.colors)
+                            
+                            # Amostragem para reduzir tamanho
+                            if len(points) > 1000:
+                                indices = np.random.choice(len(points), 1000, replace=False)
+                                points = points[indices]
+                                colors = colors[indices]
+                            
+                            message['point_cloud'] = {
+                                'points': points.tolist(),
+                                'colors': colors.tolist()
+                            }
+                
                 await self.send_to_all(message)
             except Exception as e:
                 print(f"Erro no loop de sensores: {e}")
