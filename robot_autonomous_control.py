@@ -170,9 +170,11 @@ class RealSenseController:
             print("✗ Nenhum dispositivo RealSense disponível!")
             return False
         
-        # Inicia LiDAR (embaixo do robô)
+        # Inicia LiDAR (embaixo do robô) - MODO AVANÇADO
         if self.lidar_serial:
-            print(f"\nTentando iniciar LiDAR (Serial: {self.lidar_serial})...")
+            print(f"\nTentando iniciar LiDAR L515 (Serial: {self.lidar_serial})...")
+            print("  Modo: Teste múltiplas configurações")
+            
             try:
                 ctx = rs.context()
                 devices = ctx.query_devices()
@@ -186,66 +188,111 @@ class RealSenseController:
                 
                 if lidar_device:
                     # Lista os sensores disponíveis no dispositivo
-                    print(f"  Sensores disponíveis no LiDAR:")
+                    print(f"  Sensores disponíveis:")
                     for sensor in lidar_device.query_sensors():
                         print(f"    - {sensor.get_info(rs.camera_info.name)}")
                     
-                    # Cria pipeline e configuração
-                    self.pipeline_lidar = rs.pipeline(ctx)
-                    config_lidar = rs.config()
-                    config_lidar.enable_device(self.lidar_serial)
+                    # Configurações para testar (em ordem de prioridade)
+                    test_configs = [
+                        {'width': 640, 'height': 480, 'fps': 30, 'name': '640x480@30fps (padrão)'},
+                        {'width': 1024, 'height': 768, 'fps': 30, 'name': '1024x768@30fps (alta res)'},
+                        {'width': 320, 'height': 240, 'fps': 30, 'name': '320x240@30fps (baixa res)'},
+                        {'width': 640, 'height': 480, 'fps': 15, 'name': '640x480@15fps (fps baixo)'},
+                    ]
                     
-                    # Não força resolução específica - usa padrão do dispositivo
-                    try:
-                        print("  Tentando iniciar pipeline do LiDAR...")
-                        profile = self.pipeline_lidar.start(config_lidar)
+                    success = False
+                    for i, cfg in enumerate(test_configs):
+                        print(f"\n  Tentativa {i+1}/{len(test_configs)}: {cfg['name']}")
                         
-                        # Aguarda estabilização
-                        import time
-                        time.sleep(2)
-                        
-                        # Testa se consegue obter frames
-                        print("  Testando aquisição de frames...")
-                        test_frames = self.pipeline_lidar.wait_for_frames(timeout_ms=5000)
-                        if test_frames:
-                            depth_frame = test_frames.get_depth_frame()
-                            if depth_frame:
-                                # Obtém informações do stream ativo
+                        try:
+                            # Limpa pipeline anterior se existir
+                            if self.pipeline_lidar:
+                                try:
+                                    self.pipeline_lidar.stop()
+                                except:
+                                    pass
+                            
+                            # Cria novo pipeline com configuração específica
+                            self.pipeline_lidar = rs.pipeline(ctx)
+                            config_lidar = rs.config()
+                            config_lidar.enable_device(self.lidar_serial)
+                            config_lidar.enable_stream(
+                                rs.stream.depth,
+                                cfg['width'],
+                                cfg['height'],
+                                rs.format.z16,
+                                cfg['fps']
+                            )
+                            
+                            print("    Iniciando pipeline...")
+                            profile = self.pipeline_lidar.start(config_lidar)
+                            
+                            # Aguarda estabilização
+                            import time
+                            time.sleep(1.5)
+                            
+                            # Testa captura de múltiplos frames
+                            print("    Testando captura...")
+                            frames_ok = 0
+                            for attempt in range(3):
+                                try:
+                                    test_frames = self.pipeline_lidar.wait_for_frames(timeout_ms=3000)
+                                    if test_frames:
+                                        depth_frame = test_frames.get_depth_frame()
+                                        if depth_frame:
+                                            frames_ok += 1
+                                            
+                                            if frames_ok == 1:
+                                                # Info do primeiro frame
+                                                depth_data = np.asanyarray(depth_frame.get_data())
+                                                valid_pixels = np.count_nonzero(depth_data > 0)
+                                                total_pixels = depth_data.size
+                                                percentage = (valid_pixels / total_pixels) * 100
+                                                print(f"    Frame: {depth_frame.get_width()}x{depth_frame.get_height()}")
+                                                print(f"    Pixels válidos: {percentage:.1f}%")
+                                except Exception as e:
+                                    print(f"    ⚠ Frame {attempt+1} falhou: {str(e)[:50]}")
+                            
+                            # Considera sucesso se capturou pelo menos 2 de 3 frames
+                            if frames_ok >= 2:
                                 depth_stream = profile.get_stream(rs.stream.depth)
                                 if depth_stream:
-                                    print(f"  ✓ Stream de profundidade ativo:")
-                                    print(f"    Resolução: {depth_stream.as_video_stream_profile().width()}x{depth_stream.as_video_stream_profile().height()}")
-                                    print(f"    FPS: {depth_stream.as_video_stream_profile().fps()}")
+                                    vs = depth_stream.as_video_stream_profile()
+                                    print(f"  ✓✓ CONFIGURAÇÃO FUNCIONANDO!")
+                                    print(f"    Resolução: {vs.width()}x{vs.height()}")
+                                    print(f"    FPS: {vs.fps()}")
+                                    print(f"    Frames OK: {frames_ok}/3")
                                 
                                 self.lidar_started = True
-                                print("✓ LiDAR CONECTADO E FUNCIONANDO! (posição: embaixo do robô)")
+                                print("✓ LiDAR L515 CONECTADO! (posição: embaixo do robô)")
+                                success = True
+                                break
                             else:
-                                print("✗ Não conseguiu obter frame de profundidade")
+                                print(f"    ✗ Apenas {frames_ok}/3 frames - tentando próxima config")
                                 self.pipeline_lidar.stop()
                                 self.pipeline_lidar = None
-                                self.lidar_started = False
-                        else:
-                            print("✗ Não conseguiu obter frames do LiDAR")
-                            self.pipeline_lidar.stop()
-                            self.pipeline_lidar = None
-                            self.lidar_started = False
-                            
-                    except Exception as e:
-                        print(f"✗ Erro ao iniciar/testar pipeline: {e}")
-                        if self.pipeline_lidar:
-                            try:
-                                self.pipeline_lidar.stop()
-                            except:
-                                pass
-                            self.pipeline_lidar = None
+                                
+                        except Exception as e:
+                            print(f"    ✗ Erro: {str(e)[:60]}")
+                            if self.pipeline_lidar:
+                                try:
+                                    self.pipeline_lidar.stop()
+                                except:
+                                    pass
+                                self.pipeline_lidar = None
+                    
+                    if not success:
+                        print("\n  ✗ Nenhuma configuração funcionou")
+                        print("  Execute: python3 test_lidar_l515.py")
                         self.lidar_started = False
+                        self.pipeline_lidar = None
                 else:
                     print("✗ Dispositivo LiDAR não encontrado no contexto")
                     self.lidar_started = False
                     
             except Exception as e:
-                print(f"✗ FALHA ao iniciar LiDAR: {e}")
-                print(f"  Tipo de erro: {type(e).__name__}")
+                print(f"✗ FALHA CRÍTICA ao iniciar LiDAR: {e}")
+                print(f"  Tipo: {type(e).__name__}")
                 import traceback
                 traceback.print_exc()
                 self.pipeline_lidar = None

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Script de teste isolado para Intel RealSense L515 LiDAR
-Use este script para diagnosticar problemas de conexão do LiDAR
+Script de teste AVANÇADO para Intel RealSense LiDAR L515
+Testa múltiplas configurações e resoluções
 """
 
 import pyrealsense2 as rs
@@ -9,192 +9,238 @@ import numpy as np
 import cv2
 import sys
 
-def test_lidar():
-    """Testa conexão e funcionamento do LiDAR L515"""
+def test_l515_advanced():
+    """Teste avançado com múltiplas tentativas e configurações"""
     
-    print("\n" + "="*70)
-    print("DIAGNÓSTICO DO INTEL REALSENSE L515 LIDAR")
+    print("="*70)
+    print("TESTE AVANÇADO - INTEL REALSENSE L515")
     print("="*70)
     
-    # Passo 1: Listar todos os dispositivos
-    print("\n[PASSO 1] Listando dispositivos RealSense conectados...")
-    ctx = rs.context()
-    devices = ctx.query_devices()
-    
-    if len(devices) == 0:
-        print("✗ ERRO: Nenhum dispositivo RealSense encontrado!")
-        print("\nSOLUÇÕES:")
-        print("  1. Verifique se o L515 está conectado via USB")
-        print("  2. Execute: lsusb | grep Intel")
-        print("  3. Verifique se o LED do sensor está aceso")
-        print("  4. Tente outro cabo ou porta USB 3.0")
-        print("  5. Execute: sudo chmod 666 /dev/video*")
+    # Passo 1: Criar contexto e listar dispositivos
+    print("\n[1/6] Criando contexto RealSense...")
+    try:
+        ctx = rs.context()
+        devices = ctx.query_devices()
+        
+        if len(devices) == 0:
+            print("✗ ERRO: Nenhum dispositivo RealSense encontrado!")
+            print("\nVerifique:")
+            print("  1. Cabo USB está conectado")
+            print("  2. Execute: lsusb | grep Intel")
+            print("  3. Execute: rs-enumerate-devices")
+            return False
+            
+        print(f"✓ Encontrados {len(devices)} dispositivo(s)")
+        
+    except Exception as e:
+        print(f"✗ ERRO ao criar contexto: {e}")
         return False
     
-    print(f"✓ Encontrado(s) {len(devices)} dispositivo(s)\n")
+    # Passo 2: Identificar L515
+    print("\n[2/6] Identificando L515...")
+    l515_device = None
+    l515_serial = None
     
-    # Passo 2: Identificar o L515
-    print("[PASSO 2] Identificando L515...")
-    lidar_device = None
-    lidar_serial = None
-    
-    for i, dev in enumerate(devices):
+    for dev in devices:
         name = dev.get_info(rs.camera_info.name)
         serial = dev.get_info(rs.camera_info.serial_number)
-        firmware = dev.get_info(rs.camera_info.firmware_version)
         product_line = dev.get_info(rs.camera_info.product_line)
         
-        print(f"\nDispositivo {i+1}:")
-        print(f"  Nome: {name}")
+        print(f"\n  Dispositivo: {name}")
         print(f"  Serial: {serial}")
-        print(f"  Firmware: {firmware}")
-        print(f"  Linha: {product_line}")
+        print(f"  Product Line: {product_line}")
         
         # Verifica se é L515
-        name_upper = name.upper()
-        product_upper = product_line.upper()
-        
-        if 'L515' in name_upper or 'L5' in name_upper or 'L500' in product_upper:
-            lidar_device = dev
-            lidar_serial = serial
-            print("  >>> ESTE É O L515! <<<")
+        if 'L515' in name or 'L5' in name or 'L500' in product_line:
+            l515_device = dev
+            l515_serial = serial
+            print(f"  >>> ✓ IDENTIFICADO COMO L515! <<<")
+            break
     
-    if not lidar_device:
-        print("\n✗ ERRO: L515 não foi identificado entre os dispositivos")
-        print("  Verifique se o dispositivo conectado é realmente um L515")
-        if len(devices) > 0:
-            print(f"\n  Tentando usar {devices[0].get_info(rs.camera_info.name)} como teste...")
-            lidar_device = devices[0]
-            lidar_serial = devices[0].get_info(rs.camera_info.serial_number)
-        else:
-            return False
-    else:
-        print(f"\n✓ L515 identificado com sucesso!")
+    if not l515_device:
+        print("\n✗ L515 NÃO ENCONTRADO!")
+        print("  Apenas L515 é suportado por este teste")
+        return False
     
-    # Passo 3: Listar sensores disponíveis
-    print(f"\n[PASSO 3] Verificando sensores no L515 (Serial: {lidar_serial})...")
-    sensors = lidar_device.query_sensors()
+    # Passo 3: Listar sensores do L515
+    print("\n[3/6] Listando sensores do L515...")
+    sensors = l515_device.query_sensors()
+    print(f"  Total de sensores: {len(sensors)}")
     
-    print(f"  Sensores encontrados: {len(sensors)}")
     for i, sensor in enumerate(sensors):
         sensor_name = sensor.get_info(rs.camera_info.name)
-        print(f"    {i+1}. {sensor_name}")
-        
-        # Lista perfis de stream disponíveis
-        stream_profiles = sensor.get_stream_profiles()
-        depth_profiles = [p for p in stream_profiles if p.stream_type() == rs.stream.depth]
-        
-        if depth_profiles:
-            print(f"       Perfis de profundidade disponíveis: {len(depth_profiles)}")
-            for j, profile in enumerate(depth_profiles[:3]):  # Mostra primeiros 3
-                vp = profile.as_video_stream_profile()
-                print(f"         - {vp.width()}x{vp.height()} @ {vp.fps()}fps")
+        print(f"  [{i+1}] {sensor_name}")
     
-    # Passo 4: Tentar iniciar pipeline
-    print(f"\n[PASSO 4] Tentando iniciar pipeline do L515...")
+    # Passo 4: Listar perfis disponíveis
+    print("\n[4/6] Listando perfis de stream disponíveis...")
+    available_profiles = []
     
-    try:
-        pipeline = rs.pipeline(ctx)
-        config = rs.config()
-        config.enable_device(lidar_serial)
-        
-        print("  Iniciando pipeline...")
-        profile = pipeline.start(config)
-        
-        print("  ✓ Pipeline iniciado com sucesso!")
-        
-        # Obtém informações do stream ativo
-        depth_stream = profile.get_stream(rs.stream.depth)
-        if depth_stream:
-            vp = depth_stream.as_video_stream_profile()
-            print(f"  Stream de profundidade ativo:")
-            print(f"    Resolução: {vp.width()}x{vp.height()}")
-            print(f"    FPS: {vp.fps()}")
-            print(f"    Formato: {vp.format()}")
-        
-        # Passo 5: Testar captura de frames
-        print(f"\n[PASSO 5] Testando captura de frames...")
-        
-        import time
-        time.sleep(2)  # Aguarda estabilização
-        
-        for i in range(5):
-            print(f"  Tentativa {i+1}/5...", end=" ")
-            try:
-                frames = pipeline.wait_for_frames(timeout_ms=5000)
-                depth_frame = frames.get_depth_frame()
+    for sensor in sensors:
+        for profile in sensor.get_stream_profiles():
+            if profile.stream_type() == rs.stream.depth:
+                video_profile = profile.as_video_stream_profile()
+                width = video_profile.width()
+                height = video_profile.height()
+                fps = video_profile.fps()
+                format_type = video_profile.format()
                 
-                if depth_frame:
-                    width = depth_frame.get_width()
-                    height = depth_frame.get_height()
-                    data = np.asanyarray(depth_frame.get_data())
-                    
-                    # Estatísticas dos dados
-                    valid_pixels = np.count_nonzero(data)
-                    min_depth = np.min(data[data > 0]) if valid_pixels > 0 else 0
-                    max_depth = np.max(data)
-                    
-                    print(f"✓ OK! Resolução: {width}x{height}, Pixels válidos: {valid_pixels}, Min: {min_depth}mm, Max: {max_depth}mm")
-                else:
-                    print("✗ Frame vazio")
-            except Exception as e:
-                print(f"✗ Erro: {e}")
-            
-            time.sleep(0.5)
-        
-        # Passo 6: Salvar imagem de teste
-        print(f"\n[PASSO 6] Salvando imagem de teste...")
-        try:
-            frames = pipeline.wait_for_frames(timeout_ms=5000)
-            depth_frame = frames.get_depth_frame()
-            
-            if depth_frame:
-                depth_image = np.asanyarray(depth_frame.get_data())
+                profile_info = {
+                    'width': width,
+                    'height': height,
+                    'fps': fps,
+                    'format': format_type
+                }
                 
-                # Normaliza e coloriza
-                depth_normalized = cv2.normalize(depth_image, None, 0, 255, cv2.NORM_MINMAX)
-                depth_colored = cv2.applyColorMap(depth_normalized.astype(np.uint8), cv2.COLORMAP_JET)
-                
-                filename = 'lidar_test_output.jpg'
-                cv2.imwrite(filename, depth_colored)
-                print(f"  ✓ Imagem salva em: {filename}")
-        except Exception as e:
-            print(f"  ✗ Erro ao salvar: {e}")
-        
-        # Para pipeline
-        pipeline.stop()
-        print("\n✓ Pipeline parado com sucesso")
-        
-        print("\n" + "="*70)
-        print("RESULTADO: L515 ESTÁ FUNCIONANDO CORRETAMENTE! ✓")
-        print("="*70)
-        return True
-        
-    except Exception as e:
-        print(f"\n✗ ERRO ao iniciar pipeline: {e}")
-        print(f"  Tipo: {type(e).__name__}")
-        
-        import traceback
-        print("\nStack trace completo:")
-        traceback.print_exc()
-        
-        print("\n" + "="*70)
-        print("RESULTADO: FALHA NA INICIALIZAÇÃO DO L515 ✗")
-        print("="*70)
+                if profile_info not in available_profiles:
+                    available_profiles.append(profile_info)
+                    print(f"  ✓ {width}x{height} @ {fps}fps ({format_type})")
+    
+    if len(available_profiles) == 0:
+        print("  ✗ Nenhum perfil de profundidade encontrado!")
         return False
+    
+    # Passo 5: Testar cada configuração disponível
+    print("\n[5/6] Testando configurações...")
+    
+    # Configurações recomendadas para L515 (em ordem de prioridade)
+    test_configs = [
+        {'width': 640, 'height': 480, 'fps': 30},
+        {'width': 1024, 'height': 768, 'fps': 30},
+        {'width': 320, 'height': 240, 'fps': 30},
+        {'width': 640, 'height': 480, 'fps': 15},
+    ]
+    
+    pipeline = None
+    working_config = None
+    
+    for i, config_params in enumerate(test_configs):
+        print(f"\n  Teste {i+1}: {config_params['width']}x{config_params['height']} @ {config_params['fps']}fps")
+        
+        try:
+            # Cria novo pipeline
+            pipeline = rs.pipeline(ctx)
+            config = rs.config()
+            config.enable_device(l515_serial)
+            config.enable_stream(
+                rs.stream.depth,
+                config_params['width'],
+                config_params['height'],
+                rs.format.z16,
+                config_params['fps']
+            )
+            
+            print("    Iniciando pipeline...")
+            profile = pipeline.start(config)
+            
+            # Aguarda estabilização
+            import time
+            time.sleep(1)
+            
+            # Testa captura de frames
+            print("    Testando captura de frames...")
+            frames_ok = 0
+            for attempt in range(5):
+                try:
+                    frames = pipeline.wait_for_frames(timeout_ms=2000)
+                    depth_frame = frames.get_depth_frame()
+                    
+                    if depth_frame:
+                        frames_ok += 1
+                        
+                        if frames_ok == 1:
+                            # Informações do primeiro frame
+                            width = depth_frame.get_width()
+                            height = depth_frame.get_height()
+                            print(f"    ✓ Frame capturado: {width}x{height}")
+                            
+                            # Estatísticas de profundidade
+                            depth_data = np.asanyarray(depth_frame.get_data())
+                            valid_pixels = np.count_nonzero(depth_data > 0)
+                            total_pixels = depth_data.size
+                            percentage = (valid_pixels / total_pixels) * 100
+                            
+                            print(f"    Pixels válidos: {valid_pixels}/{total_pixels} ({percentage:.1f}%)")
+                            print(f"    Distância média: {np.mean(depth_data[depth_data > 0]) / 1000:.2f}m")
+                            
+                except Exception as e:
+                    print(f"    ⚠ Falha na tentativa {attempt + 1}: {e}")
+            
+            if frames_ok >= 3:
+                print(f"    ✓✓✓ CONFIGURAÇÃO FUNCIONAL! ({frames_ok}/5 frames capturados)")
+                working_config = config_params
+                
+                # Passo 6: Salvar imagem de teste
+                print("\n[6/6] Salvando imagem de teste...")
+                try:
+                    frames = pipeline.wait_for_frames(timeout_ms=2000)
+                    depth_frame = frames.get_depth_frame()
+                    
+                    if depth_frame:
+                        depth_image = np.asanyarray(depth_frame.get_data())
+                        
+                        # Normaliza e coloriza
+                        depth_normalized = cv2.normalize(depth_image, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
+                        depth_colorized = cv2.applyColorMap(depth_normalized, cv2.COLORMAP_JET)
+                        
+                        filename = 'l515_test_working.png'
+                        cv2.imwrite(filename, depth_colorized)
+                        print(f"  ✓ Imagem salva: {filename}")
+                        
+                except Exception as e:
+                    print(f"  ⚠ Não foi possível salvar imagem: {e}")
+                
+                break
+            else:
+                print(f"    ✗ Poucos frames capturados ({frames_ok}/5)")
+                pipeline.stop()
+                pipeline = None
+                
+        except Exception as e:
+            print(f"    ✗ Erro: {e}")
+            if pipeline:
+                try:
+                    pipeline.stop()
+                except:
+                    pass
+                pipeline = None
+    
+    # Resultado final
+    print("\n" + "="*70)
+    if working_config:
+        print("✓✓✓ SUCESSO! L515 ESTÁ FUNCIONANDO! ✓✓✓")
+        print(f"\nConfiguração recomendada:")
+        print(f"  Resolução: {working_config['width']}x{working_config['height']}")
+        print(f"  FPS: {working_config['fps']}")
+        print("\nUse estas configurações no script principal!")
+        
+        if pipeline:
+            try:
+                pipeline.stop()
+            except:
+                pass
+        
+        return True
+    else:
+        print("✗✗✗ FALHA: Nenhuma configuração funcionou ✗✗✗")
+        print("\nPossíveis problemas:")
+        print("  1. L515 está defeituoso ou precisa de atualização de firmware")
+        print("  2. Porta USB não fornece energia suficiente (use USB 3.0)")
+        print("  3. Driver ou biblioteca pyrealsense2 desatualizada")
+        print("  4. Conflito com outro processo usando o dispositivo")
+        return False
+    
+    print("="*70)
 
 if __name__ == "__main__":
-    print("\nExecutando teste do LiDAR L515...")
-    print("Pressione Ctrl+C para cancelar\n")
+    print("\n" + "🔍 "*20)
+    print("DIAGNÓSTICO COMPLETO DO LIDAR L515")
+    print("🔍 "*20 + "\n")
     
-    try:
-        success = test_lidar()
-        sys.exit(0 if success else 1)
-    except KeyboardInterrupt:
-        print("\n\nTeste cancelado pelo usuário")
-        sys.exit(1)
-    except Exception as e:
-        print(f"\n\nErro inesperado: {e}")
-        import traceback
-        traceback.print_exc()
+    success = test_l515_advanced()
+    
+    if success:
+        print("\n✓ Teste concluído com SUCESSO!")
+        sys.exit(0)
+    else:
+        print("\n✗ Teste FALHOU - verifique os erros acima")
         sys.exit(1)
