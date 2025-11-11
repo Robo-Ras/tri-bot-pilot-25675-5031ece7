@@ -69,42 +69,67 @@ class RealSenseController:
         """Identifica e atribui dispositivos baseado no modelo"""
         devices = self.list_devices()
         
+        if len(devices) == 0:
+            print("\n✗ ERRO: Nenhum dispositivo RealSense detectado!")
+            print("  Verifique:")
+            print("  1. Cabos USB estão conectados corretamente")
+            print("  2. Execute: lsusb | grep Intel")
+            print("  3. Verifique permissões: sudo chmod 666 /dev/video*")
+            print("  4. Reinstale drivers: sudo apt install librealsense2-dkms")
+            return False
+        
         for dev in devices:
             name = dev['name'].upper()
             product_line = dev.get('product_line', '').upper()
+            serial = dev['serial']
             
-            # Busca por L515 usando nome e linha de produto
-            if 'L515' in name or 'L5' in name or 'L500' in product_line:
-                self.lidar_serial = dev['serial']
-                print(f"\n✓ LiDAR L515 identificado!")
+            print(f"\nAnalisando: {dev['name']}")
+            print(f"  Linha de Produto: {product_line}")
+            
+            # Busca por L515 usando múltiplos critérios
+            if any(x in name for x in ['L515', 'L5']) or 'L500' in product_line or 'LIDAR' in name:
+                self.lidar_serial = serial
+                print(f"✓ LiDAR L515 identificado!")
                 print(f"  Nome: {dev['name']}")
-                print(f"  Serial: {dev['serial']}")
+                print(f"  Serial: {serial}")
             # Busca por D435 ou qualquer câmera RGB-D
-            elif 'D435' in name or 'D4' in name or 'D400' in product_line:
-                self.camera_serial = dev['serial']
-                print(f"\n✓ Câmera D435 identificada!")
+            elif any(x in name for x in ['D435', 'D4']) or 'D400' in product_line:
+                self.camera_serial = serial
+                print(f"✓ Câmera D435 identificada!")
                 print(f"  Nome: {dev['name']}")
-                print(f"  Serial: {dev['serial']}")
+                print(f"  Serial: {serial}")
         
-        # Se não encontrou especificamente, usa os dispositivos disponíveis
+        # Se não encontrou especificamente, tenta usar o que tem
         if not self.lidar_serial and len(devices) > 0:
             self.lidar_serial = devices[0]['serial']
-            print(f"\n⚠ Usando {devices[0]['name']} como LiDAR (fallback)")
+            print(f"\n⚠ FALLBACK: Usando {devices[0]['name']} como LiDAR")
+            print(f"  Se este não for o L515, reconecte o LiDAR corretamente")
         
         if not self.camera_serial and len(devices) > 1:
             self.camera_serial = devices[1]['serial']
-            print(f"\n⚠ Usando {devices[1]['name']} como Câmera (fallback)")
+            print(f"\n⚠ FALLBACK: Usando {devices[1]['name']} como Câmera")
         elif not self.camera_serial and len(devices) == 1:
             # Se só tem um dispositivo, usa para ambos
             self.camera_serial = devices[0]['serial']
-            print(f"\n⚠ Usando {devices[0]['name']} como Câmera também (fallback)")
+            print(f"\n⚠ FALLBACK: Usando {devices[0]['name']} como Câmera também")
+            print(f"  Conecte ambos os sensores para melhor resultado")
         
-        if not (self.lidar_serial or self.camera_serial):
-            print("\n✗ Nenhum dispositivo RealSense pôde ser identificado!")
-            print("  Tente desconectar e reconectar os sensores")
-            print("  Verifique se os drivers estão instalados corretamente")
+        success = self.lidar_serial is not None or self.camera_serial is not None
         
-        return self.lidar_serial is not None or self.camera_serial is not None
+        if success:
+            print(f"\n{'='*50}")
+            print("RESUMO DE DISPOSITIVOS:")
+            if self.lidar_serial:
+                print(f"  LiDAR: Serial {self.lidar_serial}")
+            else:
+                print("  LiDAR: NÃO CONECTADO ❌")
+            if self.camera_serial:
+                print(f"  Câmera: Serial {self.camera_serial}")
+            else:
+                print("  Câmera: NÃO CONECTADO ❌")
+            print(f"{'='*50}\n")
+        
+        return success
     
     def start(self):
         """Inicia os sensores"""
@@ -114,20 +139,38 @@ class RealSenseController:
         
         # Inicia LiDAR (embaixo do robô)
         if self.lidar_serial:
+            print(f"\nTentando iniciar LiDAR (Serial: {self.lidar_serial})...")
             try:
                 self.pipeline_lidar = rs.pipeline()
                 config_lidar = rs.config()
                 config_lidar.enable_device(self.lidar_serial)
-                config_lidar.enable_stream(rs.stream.depth, 1024, 768, rs.format.z16, 30)
+                
+                # Tenta diferentes resoluções para L515
+                try:
+                    config_lidar.enable_stream(rs.stream.depth, 1024, 768, rs.format.z16, 30)
+                    print("  Configurando: 1024x768 @ 30fps")
+                except:
+                    try:
+                        config_lidar.enable_stream(rs.stream.depth, 640, 480, rs.format.z16, 30)
+                        print("  Configurando: 640x480 @ 30fps (fallback)")
+                    except:
+                        config_lidar.enable_stream(rs.stream.depth, 320, 240, rs.format.z16, 30)
+                        print("  Configurando: 320x240 @ 30fps (fallback mínimo)")
+                
                 self.pipeline_lidar.start(config_lidar)
                 self.lidar_started = True
-                print("✓ LiDAR iniciado (posição: embaixo do robô)")
+                print("✓ LiDAR CONECTADO E FUNCIONANDO! (posição: embaixo do robô)")
             except Exception as e:
-                print(f"✗ Erro ao iniciar LiDAR: {e}")
+                print(f"✗ FALHA ao iniciar LiDAR: {e}")
+                print(f"  Tipo de erro: {type(e).__name__}")
                 self.pipeline_lidar = None
+                self.lidar_started = False
+        else:
+            print("⚠ LiDAR não será iniciado (serial não identificado)")
         
         # Inicia Câmera (em cima do robô)
         if self.camera_serial:
+            print(f"\nTentando iniciar Câmera (Serial: {self.camera_serial})...")
             try:
                 self.pipeline_camera = rs.pipeline()
                 config_camera = rs.config()
@@ -136,10 +179,20 @@ class RealSenseController:
                 config_camera.enable_stream(rs.stream.depth, 640, 480, rs.format.z16, 30)
                 self.pipeline_camera.start(config_camera)
                 self.camera_started = True
-                print("✓ Câmera iniciada (posição: em cima do robô)")
+                print("✓ Câmera CONECTADA E FUNCIONANDO! (posição: em cima do robô)")
             except Exception as e:
-                print(f"✗ Erro ao iniciar câmera: {e}")
+                print(f"✗ FALHA ao iniciar câmera: {e}")
+                print(f"  Tipo de erro: {type(e).__name__}")
                 self.pipeline_camera = None
+                self.camera_started = False
+        else:
+            print("⚠ Câmera não será iniciada (serial não identificado)")
+        
+        print(f"\n{'='*50}")
+        print("STATUS FINAL:")
+        print(f"  LiDAR: {'✓ FUNCIONANDO' if self.lidar_started else '✗ OFFLINE'}")
+        print(f"  Câmera: {'✓ FUNCIONANDO' if self.camera_started else '✗ OFFLINE'}")
+        print(f"{'='*50}\n")
         
         return self.lidar_started or self.camera_started
     
@@ -313,12 +366,16 @@ class ObjectTracker:
         else:
             # Associa objetos detectados com objetos rastreados
             object_ids = list(self.objects.keys())
-            object_centroids = list(self.objects.values())
+            object_centroids = [obj['centroid'] for obj in self.objects.values()]
             
             detected_centroids = [obj['centroid'] for obj in detected_objects]
             
+            # Garante que arrays são 2D para cdist
+            object_centroids_array = np.array(object_centroids).reshape(-1, 2)
+            detected_centroids_array = np.array(detected_centroids).reshape(-1, 2)
+            
             # Calcula distância entre centroides
-            D = distance.cdist(np.array(object_centroids), np.array(detected_centroids))
+            D = distance.cdist(object_centroids_array, detected_centroids_array)
             
             # Encontra correspondências
             rows = D.min(axis=1).argsort()
