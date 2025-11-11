@@ -181,23 +181,55 @@ class RealSenseController:
                     for sensor in lidar_device.query_sensors():
                         print(f"    - {sensor.get_info(rs.camera_info.name)}")
                     
-                    # Tenta iniciar sem especificar resolução (usa padrão do dispositivo)
-                    self.pipeline_lidar = rs.pipeline()
+                    # Cria pipeline e configuração
+                    self.pipeline_lidar = rs.pipeline(ctx)
                     config_lidar = rs.config()
                     config_lidar.enable_device(self.lidar_serial)
                     
-                    # Lista perfis de stream disponíveis
-                    profile = self.pipeline_lidar.start(config_lidar)
-                    
-                    # Obtém informações do stream ativo
-                    depth_stream = profile.get_stream(rs.stream.depth)
-                    if depth_stream:
-                        print(f"  ✓ Stream de profundidade ativo:")
-                        print(f"    Resolução: {depth_stream.as_video_stream_profile().width()}x{depth_stream.as_video_stream_profile().height()}")
-                        print(f"    FPS: {depth_stream.as_video_stream_profile().fps()}")
-                    
-                    self.lidar_started = True
-                    print("✓ LiDAR CONECTADO E FUNCIONANDO! (posição: embaixo do robô)")
+                    # Não força resolução específica - usa padrão do dispositivo
+                    try:
+                        print("  Tentando iniciar pipeline do LiDAR...")
+                        profile = self.pipeline_lidar.start(config_lidar)
+                        
+                        # Aguarda estabilização
+                        import time
+                        time.sleep(2)
+                        
+                        # Testa se consegue obter frames
+                        print("  Testando aquisição de frames...")
+                        test_frames = self.pipeline_lidar.wait_for_frames(timeout_ms=5000)
+                        if test_frames:
+                            depth_frame = test_frames.get_depth_frame()
+                            if depth_frame:
+                                # Obtém informações do stream ativo
+                                depth_stream = profile.get_stream(rs.stream.depth)
+                                if depth_stream:
+                                    print(f"  ✓ Stream de profundidade ativo:")
+                                    print(f"    Resolução: {depth_stream.as_video_stream_profile().width()}x{depth_stream.as_video_stream_profile().height()}")
+                                    print(f"    FPS: {depth_stream.as_video_stream_profile().fps()}")
+                                
+                                self.lidar_started = True
+                                print("✓ LiDAR CONECTADO E FUNCIONANDO! (posição: embaixo do robô)")
+                            else:
+                                print("✗ Não conseguiu obter frame de profundidade")
+                                self.pipeline_lidar.stop()
+                                self.pipeline_lidar = None
+                                self.lidar_started = False
+                        else:
+                            print("✗ Não conseguiu obter frames do LiDAR")
+                            self.pipeline_lidar.stop()
+                            self.pipeline_lidar = None
+                            self.lidar_started = False
+                            
+                    except Exception as e:
+                        print(f"✗ Erro ao iniciar/testar pipeline: {e}")
+                        if self.pipeline_lidar:
+                            try:
+                                self.pipeline_lidar.stop()
+                            except:
+                                pass
+                            self.pipeline_lidar = None
+                        self.lidar_started = False
                 else:
                     print("✗ Dispositivo LiDAR não encontrado no contexto")
                     self.lidar_started = False
@@ -299,13 +331,19 @@ class RealSenseController:
             return None
         
         try:
-            frames = self.pipeline_lidar.wait_for_frames(timeout_ms=5000)
+            frames = self.pipeline_lidar.wait_for_frames(timeout_ms=1000)
             depth_frame = frames.get_depth_frame()
             if not depth_frame:
                 return None
             
             depth_image = np.asanyarray(depth_frame.get_data())
             return depth_image
+        except RuntimeError as e:
+            if "wait_for_frames cannot be called before start()" in str(e):
+                print("⚠ LiDAR não está iniciado, tentando reiniciar...")
+                self.lidar_started = False
+                self.pipeline_lidar = None
+            return None
         except Exception as e:
             print(f"Erro ao obter dados do LiDAR: {e}")
             return None
