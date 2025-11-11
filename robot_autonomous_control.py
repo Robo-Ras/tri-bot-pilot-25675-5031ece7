@@ -274,13 +274,16 @@ class RealSenseController:
                             # Testa captura de múltiplos frames
                             print("    Testando captura...")
                             frames_ok = 0
+                            first_error = None
                             for attempt in range(3):
                                 try:
+                                    print(f"      Tentativa {attempt+1}/3...", end=" ")
                                     test_frames = self.pipeline_lidar.wait_for_frames(timeout_ms=3000)
                                     if test_frames:
                                         depth_frame = test_frames.get_depth_frame()
                                         if depth_frame:
                                             frames_ok += 1
+                                            print("✓")
                                             
                                             if frames_ok == 1:
                                                 # Info do primeiro frame
@@ -288,27 +291,37 @@ class RealSenseController:
                                                 valid_pixels = np.count_nonzero(depth_data > 0)
                                                 total_pixels = depth_data.size
                                                 percentage = (valid_pixels / total_pixels) * 100
-                                                print(f"    Frame: {depth_frame.get_width()}x{depth_frame.get_height()}")
-                                                print(f"    Pixels válidos: {percentage:.1f}%")
+                                                print(f"        Frame: {depth_frame.get_width()}x{depth_frame.get_height()}")
+                                                print(f"        Pixels válidos: {percentage:.1f}%")
+                                        else:
+                                            print("✗ (frame vazio)")
+                                    else:
+                                        print("✗ (sem frames)")
                                 except Exception as e:
-                                    print(f"    ⚠ Frame {attempt+1} falhou: {str(e)[:50]}")
+                                    if first_error is None:
+                                        first_error = str(e)
+                                    print(f"✗ ({str(e)[:30]})")
                             
-                            # Considera sucesso se capturou pelo menos 2 de 3 frames
-                            if frames_ok >= 2:
+                            # CRITÉRIO RELAXADO: aceita se capturou pelo menos 1 frame
+                            if frames_ok >= 1:
                                 depth_stream = profile.get_stream(rs.stream.depth)
                                 if depth_stream:
                                     vs = depth_stream.as_video_stream_profile()
-                                    print(f"  ✓✓ CONFIGURAÇÃO FUNCIONANDO!")
+                                    print(f"  ✓✓ CONFIGURAÇÃO ACEITA!")
                                     print(f"    Resolução: {vs.width()}x{vs.height()}")
                                     print(f"    FPS: {vs.fps()}")
                                     print(f"    Frames OK: {frames_ok}/3")
+                                    if frames_ok < 3:
+                                        print(f"    ⚠ AVISO: Nem todos os frames foram capturados, mas continuando...")
                                 
                                 self.lidar_started = True
                                 print("✓ LiDAR L515 CONECTADO! (posição: embaixo do robô)")
                                 success = True
                                 break
                             else:
-                                print(f"    ✗ Apenas {frames_ok}/3 frames - tentando próxima config")
+                                print(f"    ✗ Nenhum frame capturado (0/3)")
+                                if first_error:
+                                    print(f"    Erro: {first_error}")
                                 self.pipeline_lidar.stop()
                                 self.pipeline_lidar = None
                                 
