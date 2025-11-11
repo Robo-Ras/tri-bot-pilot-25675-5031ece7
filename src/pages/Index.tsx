@@ -2,10 +2,8 @@ import { useState, useEffect, useRef } from "react";
 import DirectionalControl from "@/components/DirectionalControl";
 import MotorSpeedControl from "@/components/MotorSpeedControl";
 import { SensorVisualization } from "@/components/SensorVisualization";
-import { LidarVisualization } from "@/components/LidarVisualization";
 import { AutonomousControl } from "@/components/AutonomousControl";
 import { SerialConnectionControl } from "@/components/SerialConnectionControl";
-import Map3DVisualization from "@/components/Map3DVisualization";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 
@@ -15,10 +13,8 @@ const Index = () => {
   const [isArduinoConnected, setIsArduinoConnected] = useState(false);
   const [autonomousMode, setAutonomousMode] = useState(false);
   const [cameraImage, setCameraImage] = useState<string>();
-  const [lidarImage, setLidarImage] = useState<string>();
   const [groundObstacles, setGroundObstacles] = useState<any>();
   const [heightObstacles, setHeightObstacles] = useState<any>();
-  const [pointCloud, setPointCloud] = useState<any>();
   const [trackedObjects, setTrackedObjects] = useState<any>();
   const [availablePorts, setAvailablePorts] = useState<string[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
@@ -47,17 +43,11 @@ const Index = () => {
           if (data.camera) {
             setCameraImage(data.camera);
           }
-          if (data.lidar_image) {
-            setLidarImage(data.lidar_image);
-          }
           if (data.ground_obstacles) {
             setGroundObstacles(data.ground_obstacles);
           }
           if (data.height_obstacles) {
             setHeightObstacles(data.height_obstacles);
-          }
-          if (data.point_cloud) {
-            setPointCloud(data.point_cloud);
           }
           if (data.tracked_objects) {
             setTrackedObjects(data.tracked_objects);
@@ -190,24 +180,14 @@ const Index = () => {
         />
       </div>
 
-      {/* Sensors and 3D Map */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+      {/* Camera D435 */}
+      <div className="mb-6">
         <SensorVisualization
           cameraImage={cameraImage}
           groundObstacles={groundObstacles}
           heightObstacles={heightObstacles}
           trackedObjects={trackedObjects}
         />
-        
-        <LidarVisualization
-          lidarImage={lidarImage}
-          groundObstacles={groundObstacles}
-        />
-      </div>
-
-      {/* 3D Reconstruction Map */}
-      <div className="mb-6">
-        <Map3DVisualization pointCloud={pointCloud} />
       </div>
 
       <Tabs defaultValue="directional" className="w-full">
