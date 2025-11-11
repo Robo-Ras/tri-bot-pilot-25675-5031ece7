@@ -141,28 +141,48 @@ class RealSenseController:
         if self.lidar_serial:
             print(f"\nTentando iniciar LiDAR (Serial: {self.lidar_serial})...")
             try:
-                self.pipeline_lidar = rs.pipeline()
-                config_lidar = rs.config()
-                config_lidar.enable_device(self.lidar_serial)
+                ctx = rs.context()
+                devices = ctx.query_devices()
                 
-                # Tenta diferentes resoluções para L515
-                try:
-                    config_lidar.enable_stream(rs.stream.depth, 1024, 768, rs.format.z16, 30)
-                    print("  Configurando: 1024x768 @ 30fps")
-                except:
-                    try:
-                        config_lidar.enable_stream(rs.stream.depth, 640, 480, rs.format.z16, 30)
-                        print("  Configurando: 640x480 @ 30fps (fallback)")
-                    except:
-                        config_lidar.enable_stream(rs.stream.depth, 320, 240, rs.format.z16, 30)
-                        print("  Configurando: 320x240 @ 30fps (fallback mínimo)")
+                # Encontra o dispositivo LiDAR
+                lidar_device = None
+                for dev in devices:
+                    if dev.get_info(rs.camera_info.serial_number) == self.lidar_serial:
+                        lidar_device = dev
+                        break
                 
-                self.pipeline_lidar.start(config_lidar)
-                self.lidar_started = True
-                print("✓ LiDAR CONECTADO E FUNCIONANDO! (posição: embaixo do robô)")
+                if lidar_device:
+                    # Lista os sensores disponíveis no dispositivo
+                    print(f"  Sensores disponíveis no LiDAR:")
+                    for sensor in lidar_device.query_sensors():
+                        print(f"    - {sensor.get_info(rs.camera_info.name)}")
+                    
+                    # Tenta iniciar sem especificar resolução (usa padrão do dispositivo)
+                    self.pipeline_lidar = rs.pipeline()
+                    config_lidar = rs.config()
+                    config_lidar.enable_device(self.lidar_serial)
+                    
+                    # Lista perfis de stream disponíveis
+                    profile = self.pipeline_lidar.start(config_lidar)
+                    
+                    # Obtém informações do stream ativo
+                    depth_stream = profile.get_stream(rs.stream.depth)
+                    if depth_stream:
+                        print(f"  ✓ Stream de profundidade ativo:")
+                        print(f"    Resolução: {depth_stream.as_video_stream_profile().width()}x{depth_stream.as_video_stream_profile().height()}")
+                        print(f"    FPS: {depth_stream.as_video_stream_profile().fps()}")
+                    
+                    self.lidar_started = True
+                    print("✓ LiDAR CONECTADO E FUNCIONANDO! (posição: embaixo do robô)")
+                else:
+                    print("✗ Dispositivo LiDAR não encontrado no contexto")
+                    self.lidar_started = False
+                    
             except Exception as e:
                 print(f"✗ FALHA ao iniciar LiDAR: {e}")
                 print(f"  Tipo de erro: {type(e).__name__}")
+                import traceback
+                traceback.print_exc()
                 self.pipeline_lidar = None
                 self.lidar_started = False
         else:
@@ -177,12 +197,26 @@ class RealSenseController:
                 config_camera.enable_device(self.camera_serial)
                 config_camera.enable_stream(rs.stream.color, 640, 480, rs.format.bgr8, 30)
                 config_camera.enable_stream(rs.stream.depth, 640, 480, rs.format.z16, 30)
-                self.pipeline_camera.start(config_camera)
+                
+                profile = self.pipeline_camera.start(config_camera)
+                
+                # Obtém informações dos streams
+                color_stream = profile.get_stream(rs.stream.color)
+                depth_stream = profile.get_stream(rs.stream.depth)
+                
+                print(f"  ✓ Streams ativos:")
+                if color_stream:
+                    print(f"    Color: {color_stream.as_video_stream_profile().width()}x{color_stream.as_video_stream_profile().height()}")
+                if depth_stream:
+                    print(f"    Depth: {depth_stream.as_video_stream_profile().width()}x{depth_stream.as_video_stream_profile().height()}")
+                
                 self.camera_started = True
                 print("✓ Câmera CONECTADA E FUNCIONANDO! (posição: em cima do robô)")
             except Exception as e:
                 print(f"✗ FALHA ao iniciar câmera: {e}")
                 print(f"  Tipo de erro: {type(e).__name__}")
+                import traceback
+                traceback.print_exc()
                 self.pipeline_camera = None
                 self.camera_started = False
         else:
@@ -284,99 +318,84 @@ class RealSenseController:
 
 
 class ObjectTracker:
-    """Rastreia objetos detectados pela câmera"""
+    """Rastreia objetos detectados pela câmera usando apenas dados de profundidade"""
     
-    def __init__(self, max_disappeared=30, min_area=2000, max_distance=2.5):
+    def __init__(self, max_disappeared=30, min_area=3000, max_distance=3.0, min_distance=0.3):
         self.next_object_id = 0
-        self.objects = {}  # {id: centroid}
+        self.objects = {}  # {id: object_data}
         self.disappeared = {}  # {id: frames_disappeared}
         self.max_disappeared = max_disappeared
-        self.min_area = min_area  # Área mínima aumentada para filtrar objetos pequenos
-        self.max_distance = max_distance  # Distância máxima em metros para trackear
-        self.bg_subtractor = cv2.createBackgroundSubtractorMOG2(
-            history=500, varThreshold=50, detectShadows=False
-        )
+        self.min_area = min_area  # Área mínima do objeto em pixels
+        self.max_distance = max_distance  # Distância máxima em metros
+        self.min_distance = min_distance  # Distância mínima em metros
         
     def detect_objects(self, frame, depth_frame=None):
-        """Detecta objetos no frame usando subtração de fundo"""
-        if frame is None:
+        """Detecta objetos usando APENAS dados de profundidade"""
+        if depth_frame is None:
             return []
         
-        # Aplica subtração de fundo
-        fg_mask = self.bg_subtractor.apply(frame)
-        
-        # Remove ruído com operações morfológicas mais agressivas
-        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
-        fg_mask = cv2.morphologyEx(fg_mask, cv2.MORPH_OPEN, kernel, iterations=2)
-        fg_mask = cv2.morphologyEx(fg_mask, cv2.MORPH_CLOSE, kernel)
-        
-        # Aplica threshold mais restritivo
-        _, fg_mask = cv2.threshold(fg_mask, 200, 255, cv2.THRESH_BINARY)
-        
-        # Encontra contornos
-        contours, _ = cv2.findContours(fg_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        
         detected_objects = []
-        for contour in contours:
-            area = cv2.contourArea(contour)
-            if area < self.min_area:
-                continue
+        
+        try:
+            # Converte profundidade para metros
+            depth_meters = depth_frame.astype(np.float32) * 0.001
             
-            # Calcula bounding box
-            x, y, w, h = cv2.boundingRect(contour)
+            # Filtra apenas objetos na faixa de distância desejada
+            valid_mask = (depth_meters > self.min_distance) & (depth_meters < self.max_distance)
             
-            # Filtra objetos muito alongados (provavelmente ruído)
-            aspect_ratio = w / float(h) if h > 0 else 0
-            if aspect_ratio > 5 or aspect_ratio < 0.2:
-                continue
+            # Cria máscara binária
+            mask = (valid_mask * 255).astype(np.uint8)
             
-            # Calcula centroide
-            M = cv2.moments(contour)
-            if M["m00"] != 0:
-                cx = int(M["m10"] / M["m00"])
-                cy = int(M["m01"] / M["m00"])
-            else:
-                cx, cy = x + w // 2, y + h // 2
+            # Remove ruído
+            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9))
+            mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, iterations=2)
+            mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
             
-            # Obtém profundidade se disponível
-            depth = None
-            if depth_frame is not None:
-                try:
-                    # Amostra múltiplos pontos para melhor estimativa de profundidade
-                    sample_points = [
-                        (cy, cx),
-                        (cy - h//4, cx),
-                        (cy + h//4, cx),
-                        (cy, cx - w//4),
-                        (cy, cx + w//4)
-                    ]
-                    
-                    depth_values = []
-                    for py, px in sample_points:
-                        if 0 <= py < depth_frame.shape[0] and 0 <= px < depth_frame.shape[1]:
-                            dv = depth_frame[py, px]
-                            if dv > 0:
-                                depth_values.append(float(dv * 0.001))
-                    
-                    if depth_values:
-                        depth = np.median(depth_values)  # Usa mediana para robustez
-                except:
-                    pass
+            # Encontra contornos
+            contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
             
-            # Filtra objetos pela distância
-            if depth is not None and depth > self.max_distance:
-                continue
-            
-            # Filtra objetos sem profundidade válida (muito longe ou erro)
-            if depth is None or depth < 0.1:
-                continue
-            
-            detected_objects.append({
-                'bbox': (x, y, w, h),
-                'centroid': (cx, cy),
-                'area': int(area),
-                'depth': depth
-            })
+            for contour in contours:
+                area = cv2.contourArea(contour)
+                
+                # Filtra por área mínima
+                if area < self.min_area:
+                    continue
+                
+                # Calcula bounding box
+                x, y, w, h = cv2.boundingRect(contour)
+                
+                # Filtra formas muito estranhas
+                aspect_ratio = w / float(h) if h > 0 else 0
+                if aspect_ratio > 4 or aspect_ratio < 0.25:
+                    continue
+                
+                # Calcula centroide
+                M = cv2.moments(contour)
+                if M["m00"] != 0:
+                    cx = int(M["m10"] / M["m00"])
+                    cy = int(M["m01"] / M["m00"])
+                else:
+                    cx, cy = x + w // 2, y + h // 2
+                
+                # Calcula profundidade média na região do objeto
+                depth_region = depth_meters[y:y+h, x:x+w]
+                depth_valid = depth_region[(depth_region > self.min_distance) & (depth_region < self.max_distance)]
+                
+                if len(depth_valid) == 0:
+                    continue
+                
+                depth = float(np.median(depth_valid))
+                
+                detected_objects.append({
+                    'bbox': (x, y, w, h),
+                    'centroid': (cx, cy),
+                    'area': int(area),
+                    'depth': round(depth, 2)
+                })
+        
+        except Exception as e:
+            print(f"Erro na detecção de objetos: {e}")
+            return []
         
         return detected_objects
     
