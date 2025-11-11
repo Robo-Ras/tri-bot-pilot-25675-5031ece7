@@ -8,15 +8,16 @@ import { Usb, RefreshCw } from "lucide-react";
 interface SerialConnectionControlProps {
   wsRef: React.RefObject<WebSocket | null>;
   isArduinoConnected: boolean;
+  availablePorts: string[];
   onConnectionChange: (connected: boolean) => void;
 }
 
 export const SerialConnectionControl = ({ 
   wsRef, 
   isArduinoConnected,
+  availablePorts,
   onConnectionChange 
 }: SerialConnectionControlProps) => {
-  const [ports, setPorts] = useState<string[]>([]);
   const [selectedPort, setSelectedPort] = useState<string>("");
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -56,28 +57,10 @@ export const SerialConnectionControl = ({
 
   useEffect(() => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      const handleMessage = (event: MessageEvent) => {
-        const data = JSON.parse(event.data);
-        
-        if (data.type === 'ports_list') {
-          console.log('Portas recebidas:', data.ports);
-          setPorts(data.ports || []);
-        } else if (data.type === 'serial_status') {
-          console.log('Status serial:', data.connected, data.port);
-          onConnectionChange(data.connected);
-        }
-      };
-
-      wsRef.current.addEventListener('message', handleMessage);
-      
       // Request ports on mount
       setTimeout(() => refreshPorts(), 500);
-
-      return () => {
-        wsRef.current?.removeEventListener('message', handleMessage);
-      };
     }
-  }, [wsRef.current, wsRef.current?.readyState]);
+  }, [wsRef.current?.readyState]);
 
   return (
     <Card>
@@ -102,10 +85,10 @@ export const SerialConnectionControl = ({
               <SelectValue placeholder="Selecione uma porta" />
             </SelectTrigger>
             <SelectContent>
-              {ports.length === 0 ? (
+              {availablePorts.length === 0 ? (
                 <SelectItem value="none" disabled>Nenhuma porta encontrada</SelectItem>
               ) : (
-                ports.map((port) => (
+                availablePorts.map((port) => (
                   <SelectItem key={port} value={port}>
                     {port}
                   </SelectItem>

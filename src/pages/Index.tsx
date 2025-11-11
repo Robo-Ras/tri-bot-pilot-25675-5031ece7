@@ -20,6 +20,7 @@ const Index = () => {
   const [heightObstacles, setHeightObstacles] = useState<any>();
   const [pointCloud, setPointCloud] = useState<any>();
   const [trackedObjects, setTrackedObjects] = useState<any>();
+  const [availablePorts, setAvailablePorts] = useState<string[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
   const { toast } = useToast();
 
@@ -60,6 +61,18 @@ const Index = () => {
           }
           if (data.tracked_objects) {
             setTrackedObjects(data.tracked_objects);
+          }
+        } else if (data.type === 'ports_list') {
+          console.log('✅ Lista de portas recebida:', data.ports);
+          setAvailablePorts(data.ports || []);
+        } else if (data.type === 'serial_status') {
+          console.log('✅ Status serial atualizado:', data.connected, data.port);
+          setIsArduinoConnected(data.connected);
+          if (data.connected) {
+            toast({
+              title: "Arduino Conectado",
+              description: `Conectado na porta ${data.port}`,
+            });
           }
         }
       };
@@ -160,6 +173,7 @@ const Index = () => {
         <SerialConnectionControl
           wsRef={wsRef}
           isArduinoConnected={isArduinoConnected}
+          availablePorts={availablePorts}
           onConnectionChange={setIsArduinoConnected}
         />
       </div>
