@@ -286,12 +286,13 @@ class RealSenseController:
 class ObjectTracker:
     """Rastreia objetos detectados pela câmera"""
     
-    def __init__(self, max_disappeared=30, min_area=500):
+    def __init__(self, max_disappeared=30, min_area=2000, max_distance=2.5):
         self.next_object_id = 0
         self.objects = {}  # {id: centroid}
         self.disappeared = {}  # {id: frames_disappeared}
         self.max_disappeared = max_disappeared
-        self.min_area = min_area
+        self.min_area = min_area  # Área mínima aumentada para filtrar objetos pequenos
+        self.max_distance = max_distance  # Distância máxima em metros para trackear
         self.bg_subtractor = cv2.createBackgroundSubtractorMOG2(
             history=500, varThreshold=50, detectShadows=False
         )
@@ -304,10 +305,13 @@ class ObjectTracker:
         # Aplica subtração de fundo
         fg_mask = self.bg_subtractor.apply(frame)
         
-        # Remove ruído
-        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
-        fg_mask = cv2.morphologyEx(fg_mask, cv2.MORPH_OPEN, kernel)
+        # Remove ruído com operações morfológicas mais agressivas
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
+        fg_mask = cv2.morphologyEx(fg_mask, cv2.MORPH_OPEN, kernel, iterations=2)
         fg_mask = cv2.morphologyEx(fg_mask, cv2.MORPH_CLOSE, kernel)
+        
+        # Aplica threshold mais restritivo
+        _, fg_mask = cv2.threshold(fg_mask, 200, 255, cv2.THRESH_BINARY)
         
         # Encontra contornos
         contours, _ = cv2.findContours(fg_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -321,6 +325,11 @@ class ObjectTracker:
             # Calcula bounding box
             x, y, w, h = cv2.boundingRect(contour)
             
+            # Filtra objetos muito alongados (provavelmente ruído)
+            aspect_ratio = w / float(h) if h > 0 else 0
+            if aspect_ratio > 5 or aspect_ratio < 0.2:
+                continue
+            
             # Calcula centroide
             M = cv2.moments(contour)
             if M["m00"] != 0:
@@ -333,11 +342,34 @@ class ObjectTracker:
             depth = None
             if depth_frame is not None:
                 try:
-                    depth_value = depth_frame[cy, cx]
-                    if depth_value > 0:
-                        depth = float(depth_value * 0.001)  # converte para metros
+                    # Amostra múltiplos pontos para melhor estimativa de profundidade
+                    sample_points = [
+                        (cy, cx),
+                        (cy - h//4, cx),
+                        (cy + h//4, cx),
+                        (cy, cx - w//4),
+                        (cy, cx + w//4)
+                    ]
+                    
+                    depth_values = []
+                    for py, px in sample_points:
+                        if 0 <= py < depth_frame.shape[0] and 0 <= px < depth_frame.shape[1]:
+                            dv = depth_frame[py, px]
+                            if dv > 0:
+                                depth_values.append(float(dv * 0.001))
+                    
+                    if depth_values:
+                        depth = np.median(depth_values)  # Usa mediana para robustez
                 except:
                     pass
+            
+            # Filtra objetos pela distância
+            if depth is not None and depth > self.max_distance:
+                continue
+            
+            # Filtra objetos sem profundidade válida (muito longe ou erro)
+            if depth is None or depth < 0.1:
+                continue
             
             detected_objects.append({
                 'bbox': (x, y, w, h),
