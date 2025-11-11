@@ -4,6 +4,7 @@ import MotorSpeedControl from "@/components/MotorSpeedControl";
 import { SensorVisualization } from "@/components/SensorVisualization";
 import { LidarVisualization } from "@/components/LidarVisualization";
 import { AutonomousControl } from "@/components/AutonomousControl";
+import { SerialConnectionControl } from "@/components/SerialConnectionControl";
 import Map3DVisualization from "@/components/Map3DVisualization";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
@@ -11,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 const Index = () => {
   const [lastCommand, setLastCommand] = useState<string>("");
   const [isConnected, setIsConnected] = useState(false);
+  const [isArduinoConnected, setIsArduinoConnected] = useState(false);
   const [autonomousMode, setAutonomousMode] = useState(false);
   const [cameraImage, setCameraImage] = useState<string>();
   const [lidarImage, setLidarImage] = useState<string>();
@@ -147,6 +149,15 @@ const Index = () => {
           <p className="font-mono font-semibold">{lastCommand}</p>
         </div>
       )}
+
+      {/* Serial Connection */}
+      <div className="mb-6">
+        <SerialConnectionControl
+          wsRef={wsRef}
+          isArduinoConnected={isArduinoConnected}
+          onConnectionChange={setIsArduinoConnected}
+        />
+      </div>
 
       {/* Autonomous Control */}
       <div className="mb-6">

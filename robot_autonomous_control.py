@@ -812,23 +812,35 @@ class WebSocketServer:
         """Processa comandos recebidos"""
         cmd_type = data.get('type')
         
-        if cmd_type == 'connect':
+        if cmd_type == 'discover_ports':
+            # Descobre portas seriais disponíveis
+            ports = self.robot.get_available_ports()
+            await self.send_to_all({'type': 'ports_list', 'ports': ports})
+            
+        elif cmd_type == 'connect_serial':
+            # Conecta ao Arduino na porta especificada
             port = data.get('port')
             success = self.robot.connect(port)
-            await self.send_to_all({'type': 'connection', 'status': success})
+            await self.send_to_all({
+                'type': 'serial_status', 
+                'connected': success,
+                'port': port if success else None
+            })
             
         elif cmd_type == 'move':
-            direction = data.get('direction')
-            speed = data.get('speed', 150)
-            self.robot.move(direction, speed)
+            # Comandos de movimento diretos (m1, m2, m3)
+            if 'm1' in data and 'm2' in data and 'm3' in data:
+                # Comando direto dos controles
+                self.robot.send_command(data['m1'], data['m2'], data['m3'])
+            else:
+                # Comando por direção (compatibilidade)
+                direction = data.get('direction')
+                speed = data.get('speed', 150)
+                self.robot.move(direction, speed)
             
         elif cmd_type == 'set_autonomous':
             self.autonomous_mode = data.get('enabled', False)
             await self.send_to_all({'type': 'autonomous_status', 'enabled': self.autonomous_mode})
-            
-        elif cmd_type == 'get_ports':
-            ports = self.robot.get_available_ports()
-            await self.send_to_all({'type': 'ports', 'ports': ports})
     
     async def sensor_loop(self):
         """Loop principal de processamento dos sensores"""
