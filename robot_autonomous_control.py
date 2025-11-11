@@ -35,6 +35,26 @@ class RealSenseController:
         self.point_cloud = o3d.geometry.PointCloud()
         self.mesh = None
         
+    def cleanup(self):
+        """Libera todos os recursos dos sensores"""
+        try:
+            if self.pipeline_lidar:
+                self.pipeline_lidar.stop()
+                self.pipeline_lidar = None
+                self.lidar_started = False
+                print("  ✓ Pipeline LiDAR liberado")
+        except:
+            pass
+        
+        try:
+            if self.pipeline_camera:
+                self.pipeline_camera.stop()
+                self.pipeline_camera = None
+                self.camera_started = False
+                print("  ✓ Pipeline Câmera liberado")
+        except:
+            pass
+        
     def list_devices(self):
         """Lista todos os dispositivos RealSense conectados"""
         ctx = rs.context()
@@ -133,6 +153,10 @@ class RealSenseController:
     
     def start(self):
         """Inicia os sensores"""
+        # Primeiro, limpa qualquer recurso anterior
+        print("\nLimpando recursos anteriores...")
+        self.cleanup()
+        
         if not self.identify_devices():
             print("✗ Nenhum dispositivo RealSense disponível!")
             return False
@@ -191,7 +215,32 @@ class RealSenseController:
         # Inicia Câmera (em cima do robô)
         if self.camera_serial:
             print(f"\nTentando iniciar Câmera (Serial: {self.camera_serial})...")
+            
+            # Verifica se o dispositivo está ocupado e tenta resetar
             try:
+                ctx = rs.context()
+                devices = ctx.query_devices()
+                
+                camera_device = None
+                for dev in devices:
+                    if dev.get_info(rs.camera_info.serial_number) == self.camera_serial:
+                        camera_device = dev
+                        break
+                
+                if camera_device:
+                    print("  Verificando estado do dispositivo...")
+                    
+                    # Tenta fazer hardware reset se disponível
+                    try:
+                        if camera_device.supports(rs.camera_info.product_line):
+                            print("  Tentando reset de hardware...")
+                            camera_device.hardware_reset()
+                            import time
+                            time.sleep(3)  # Aguarda reset
+                            print("  ✓ Reset concluído")
+                    except:
+                        pass
+                
                 self.pipeline_camera = rs.pipeline()
                 config_camera = rs.config()
                 config_camera.enable_device(self.camera_serial)
@@ -212,6 +261,20 @@ class RealSenseController:
                 
                 self.camera_started = True
                 print("✓ Câmera CONECTADA E FUNCIONANDO! (posição: em cima do robô)")
+                
+            except RuntimeError as e:
+                error_msg = str(e)
+                if "busy" in error_msg.lower():
+                    print(f"✗ ERRO: Câmera está sendo usada por outro processo")
+                    print(f"  Execute: sudo fuser -k /dev/video*")
+                    print(f"  Ou reinicie o sistema")
+                else:
+                    print(f"✗ FALHA ao iniciar câmera: {e}")
+                print(f"  Tipo de erro: {type(e).__name__}")
+                import traceback
+                traceback.print_exc()
+                self.pipeline_camera = None
+                self.camera_started = False
             except Exception as e:
                 print(f"✗ FALHA ao iniciar câmera: {e}")
                 print(f"  Tipo de erro: {type(e).__name__}")
@@ -309,12 +372,9 @@ class RealSenseController:
     
     def stop(self):
         """Para os sensores"""
-        if self.lidar_started and self.pipeline_lidar:
-            self.pipeline_lidar.stop()
-            print("✓ LiDAR parado")
-        if self.camera_started and self.pipeline_camera:
-            self.pipeline_camera.stop()
-            print("✓ Câmera parada")
+        print("\nParando sensores...")
+        self.cleanup()
+        print("✓ Sensores parados")
 
 
 class ObjectTracker:
