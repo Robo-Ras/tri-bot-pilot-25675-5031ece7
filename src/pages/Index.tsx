@@ -4,6 +4,7 @@ import MotorSpeedControl from "@/components/MotorSpeedControl";
 import { SensorVisualization } from "@/components/SensorVisualization";
 import { AutonomousControl } from "@/components/AutonomousControl";
 import { SerialConnectionControl } from "@/components/SerialConnectionControl";
+import { ArduinoTroubleshooting } from "@/components/ArduinoTroubleshooting";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 
@@ -179,13 +180,15 @@ const Index = () => {
       </div>
 
       {/* Arduino Connection */}
-      <div className="mb-6">
+      <div className="mb-6 space-y-4">
         <SerialConnectionControl
           wsRef={wsRef}
           isArduinoConnected={isArduinoConnected}
           availablePorts={availablePorts}
           onConnectionChange={setIsArduinoConnected}
         />
+        
+        {!isArduinoConnected && <ArduinoTroubleshooting />}
       </div>
       
       {lastCommand && (

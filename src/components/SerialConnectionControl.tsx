@@ -50,9 +50,16 @@ export const SerialConnectionControl = ({
     setIsConnecting(true);
 
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      // Adiciona /dev/ se não estiver presente
+      const fullPort = selectedPort.startsWith('/dev/') 
+        ? selectedPort 
+        : `/dev/${selectedPort}`;
+      
+      console.log(`🔌 Tentando conectar ao Arduino na porta: ${fullPort}`);
+      
       wsRef.current.send(JSON.stringify({
         type: 'connect_serial',
-        port: selectedPort
+        port: fullPort
       }));
       
       setTimeout(() => setIsConnecting(false), 3000);
@@ -74,11 +81,15 @@ export const SerialConnectionControl = ({
   };
 
   if (isArduinoConnected) {
+    const displayPort = selectedPort.startsWith('/dev/') 
+      ? selectedPort 
+      : `/dev/${selectedPort}`;
+    
     return (
       <div className="space-y-4">
         <div className="flex items-center gap-2 p-3 rounded-lg bg-primary/10">
           <Plug className="w-4 h-4 text-primary" />
-          <span className="text-sm font-medium">Conectado: {selectedPort}</span>
+          <span className="text-sm font-medium">Conectado: {displayPort}</span>
         </div>
         <Button onClick={handleDisconnect} variant="outline" className="w-full">
           Desconectar
