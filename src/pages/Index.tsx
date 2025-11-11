@@ -26,10 +26,11 @@ const Index = () => {
   // WebSocket connection
   useEffect(() => {
     const connectWebSocket = () => {
+      console.log('🌐 Tentando conectar ao servidor Python em ws://localhost:8765');
       const ws = new WebSocket('ws://localhost:8765');
       
       ws.onopen = () => {
-        console.log('✓ Conectado ao servidor Python');
+        console.log('✓✓✓ CONECTADO ao servidor Python com sucesso!');
         setIsConnected(true);
         toast({
           title: "Conectado",
@@ -39,6 +40,7 @@ const Index = () => {
       
       ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
+        console.log('📩 Mensagem recebida do servidor:', data.type);
         
         if (data.type === 'sensor_data') {
           if (data.camera) {
@@ -63,18 +65,21 @@ const Index = () => {
       };
       
       ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
+        console.error('❌ ERRO WebSocket:', error);
+        console.error('Certifique-se que robot_autonomous_control.py está rodando!');
+        console.error('Execute: python robot_autonomous_control.py');
         toast({
           title: "Erro de Conexão",
-          description: "Verifique se o script Python está rodando",
+          description: "Servidor Python não está rodando. Execute: python robot_autonomous_control.py",
           variant: "destructive",
         });
       };
       
       ws.onclose = () => {
-        console.log('✗ Desconectado do servidor');
+        console.log('✗ Desconectado do servidor Python');
         setIsConnected(false);
         // Tentar reconectar após 3 segundos
+        console.log('⏳ Tentando reconectar em 3 segundos...');
         setTimeout(connectWebSocket, 3000);
       };
       

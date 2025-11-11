@@ -21,22 +21,36 @@ export const SerialConnectionControl = ({
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const refreshPorts = () => {
+    console.log('🔍 Tentando descobrir portas...');
+    console.log('WebSocket state:', wsRef.current?.readyState);
+    console.log('OPEN =', WebSocket.OPEN, 'CONNECTING =', WebSocket.CONNECTING, 'CLOSED =', WebSocket.CLOSED);
+    
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      console.log('✓ WebSocket aberto, enviando discover_ports');
       setIsRefreshing(true);
       wsRef.current.send(JSON.stringify({
         type: 'discover_ports'
       }));
       
       setTimeout(() => setIsRefreshing(false), 1000);
+    } else {
+      console.error('✗ WebSocket não está aberto! Estado:', wsRef.current?.readyState);
+      console.error('Certifique-se que robot_autonomous_control.py está rodando');
     }
   };
 
   const connectArduino = () => {
+    console.log('🔌 Tentando conectar Arduino na porta:', selectedPort);
+    console.log('WebSocket state:', wsRef.current?.readyState);
+    
     if (selectedPort && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      console.log('✓ Enviando comando connect_serial');
       wsRef.current.send(JSON.stringify({
         type: 'connect_serial',
         port: selectedPort
       }));
+    } else {
+      console.error('✗ Não pode conectar! Porta:', selectedPort, 'WS state:', wsRef.current?.readyState);
     }
   };
 
