@@ -4,7 +4,7 @@ import MotorSpeedControl from "@/components/MotorSpeedControl";
 import { SensorVisualization } from "@/components/SensorVisualization";
 import { LidarVisualization } from "@/components/LidarVisualization";
 import { AutonomousControl } from "@/components/AutonomousControl";
-import { WebSerialConnection } from "@/components/WebSerialConnection";
+import { SerialConnectionControl } from "@/components/SerialConnectionControl";
 import Map3DVisualization from "@/components/Map3DVisualization";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
@@ -112,12 +112,7 @@ const Index = () => {
     setLastCommand(`M1: ${m1}, M2: ${m2}, M3: ${m3}`);
     console.log("Sending command:", m1, m2, m3);
     
-    // Envia via Web Serial API se disponível
-    if ((window as any).sendArduinoCommand) {
-      (window as any).sendArduinoCommand(m1, m2, m3);
-    }
-    
-    // Também envia via WebSocket se conectado (para logs/monitoramento)
+    // Envia comando via WebSocket se conectado
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({
         type: 'move',
@@ -168,9 +163,14 @@ const Index = () => {
         Sistema de Controle Remoto com Navegação Autônoma
       </p>
       
-      {/* Arduino Connection - Web Serial API */}
+      {/* Arduino Connection */}
       <div className="mb-6">
-        <WebSerialConnection onSendCommand={(m1, m2, m3) => setLastCommand(`M1: ${m1}, M2: ${m2}, M3: ${m3}`)} />
+        <SerialConnectionControl
+          wsRef={wsRef}
+          isArduinoConnected={isArduinoConnected}
+          availablePorts={availablePorts}
+          onConnectionChange={setIsArduinoConnected}
+        />
       </div>
       
       {lastCommand && (
