@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,10 +24,12 @@ export const SettingsDialog = ({
   availablePorts,
   onConnectionChange,
 }: SettingsDialogProps) => {
+  const [open, setOpen] = useState(false);
+
   return (
-    <Dialog>
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="icon">
+        <Button variant="outline" size="icon" aria-label="Configurações">
           <Settings className="h-5 w-5" />
         </Button>
       </DialogTrigger>
