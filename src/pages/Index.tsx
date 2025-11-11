@@ -4,10 +4,9 @@ import MotorSpeedControl from "@/components/MotorSpeedControl";
 import { SensorVisualization } from "@/components/SensorVisualization";
 import { LidarVisualization } from "@/components/LidarVisualization";
 import { AutonomousControl } from "@/components/AutonomousControl";
-import { SettingsDialog } from "@/components/SettingsDialog";
+import { SerialConnectionControl } from "@/components/SerialConnectionControl";
 import Map3DVisualization from "@/components/Map3DVisualization";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 
 const Index = () => {
@@ -159,21 +158,20 @@ const Index = () => {
     <div className="container mx-auto px-4 py-8">
       <div className="flex items-center justify-between mb-2">
         <h1 className="text-4xl font-bold">Tri-Bot Pilot</h1>
-        <div className="flex items-center gap-3">
-          <Badge variant={isArduinoConnected ? "default" : "secondary"}>
-            Arduino: {isArduinoConnected ? "Conectado" : "Desconectado"}
-          </Badge>
-          <SettingsDialog
-            wsRef={wsRef}
-            isArduinoConnected={isArduinoConnected}
-            availablePorts={availablePorts}
-            onConnectionChange={setIsArduinoConnected}
-          />
-        </div>
       </div>
       <p className="text-center text-muted-foreground mb-8">
         Sistema de Controle Remoto com Navegação Autônoma
       </p>
+      
+      {/* Arduino Connection - Always Visible */}
+      <div className="mb-6">
+        <SerialConnectionControl
+          wsRef={wsRef}
+          isArduinoConnected={isArduinoConnected}
+          availablePorts={availablePorts}
+          onConnectionChange={setIsArduinoConnected}
+        />
+      </div>
       
       {lastCommand && (
         <div className="text-center mb-6 p-4 bg-secondary rounded-lg">
