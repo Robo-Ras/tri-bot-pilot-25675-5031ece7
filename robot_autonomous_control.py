@@ -73,10 +73,17 @@ class RealSenseController:
             serial = dev.get_info(rs.camera_info.serial_number)
             firmware = dev.get_info(rs.camera_info.firmware_version)
             product_line = dev.get_info(rs.camera_info.product_line)
+            
             print(f"{i+1}. {name}")
             print(f"   Serial: {serial}")
             print(f"   Firmware: {firmware}")
             print(f"   Linha de Produto: {product_line}")
+            
+            # DEBUG: Mostra valores para comparação
+            print(f"   [DEBUG] Nome UPPER: '{name.upper()}'")
+            print(f"   [DEBUG] Product UPPER: '{product_line.upper()}'")
+            print(f"   [DEBUG] Tamanho nome: {len(name)}")
+            
             device_list.append({
                 'name': name, 
                 'serial': serial, 
@@ -120,39 +127,47 @@ class RealSenseController:
             print(f"    Serial: {serial}")
             print(f"    Linha: {product_line}")
             
-            # Debug de identificação
-            print(f"    Análise:")
-            print(f"      'L515' em nome? {'L515' in name_upper}")
-            print(f"      'L5' em nome? {'L5' in name_upper}")
-            print(f"      'L500' em product_line? {'L500' in product_upper}")
-            print(f"      'LIDAR' em nome? {'LIDAR' in name_upper}")
+            # Debug MUITO detalhado de identificação
+            print(f"    [DEBUG] Testes de identificação:")
             
-            # Identifica L515 (LiDAR) - mesma lógica do test_lidar que funcionou
-            is_lidar = any([
-                'L515' in name_upper,
-                'L5' in name_upper and len(name) < 20,
-                'L500' in product_upper,
-                'LIDAR' in name_upper and 'L5' in product_upper
-            ])
+            # Testes para LiDAR
+            test1 = 'L515' in name_upper
+            test2 = 'L5' in name_upper and len(name) < 20
+            test3 = 'L500' in product_upper
+            test4 = 'LIDAR' in name_upper and 'L5' in product_upper
+            
+            print(f"      LiDAR - 'L515' in nome: {test1}")
+            print(f"      LiDAR - 'L5' in nome (curto): {test2} (len={len(name)})")
+            print(f"      LiDAR - 'L500' in product: {test3}")
+            print(f"      LiDAR - 'LIDAR' e 'L5': {test4}")
+            
+            # Testes para Câmera
+            test5 = 'D435' in name_upper
+            test6 = 'D4' in name_upper and len(name) < 20
+            test7 = 'D400' in product_upper
+            
+            print(f"      Câmera - 'D435' in nome: {test5}")
+            print(f"      Câmera - 'D4' in nome (curto): {test6}")
+            print(f"      Câmera - 'D400' in product: {test7}")
+            
+            # Identifica L515 (LiDAR)
+            is_lidar = test1 or test2 or test3 or test4
             
             # Identifica D435 (Câmera)
-            is_camera = any([
-                'D435' in name_upper,
-                'D4' in name_upper and len(name) < 20,
-                'D400' in product_upper
-            ])
+            is_camera = test5 or test6 or test7
             
+            print(f"    RESULTADO:")
             if is_lidar:
                 self.lidar_serial = serial
-                print(f"    >>> ✓ IDENTIFICADO COMO: LiDAR L515 <<<")
-                print(f"    Será usado para detecção de obstáculos no chão")
+                print(f"      >>> ✓ IDENTIFICADO COMO: LiDAR L515 <<<")
+                print(f"      Será usado para detecção de obstáculos no chão")
             elif is_camera:
                 self.camera_serial = serial
-                print(f"    >>> ✓ IDENTIFICADO COMO: Câmera D435 <<<")
-                print(f"    Será usada para detecção de altura e tracking")
+                print(f"      >>> ✓ IDENTIFICADO COMO: Câmera D435 <<<")
+                print(f"      Será usada para detecção de altura e tracking")
             else:
-                print(f"    >>> ⚠ TIPO DESCONHECIDO <<<")
-                print(f"    Será atribuído automaticamente no fallback")
+                print(f"      >>> ⚠ TIPO DESCONHECIDO <<<")
+                print(f"      Será atribuído automaticamente no fallback")
         
         # Fallback se não conseguiu identificar especificamente
         if not self.lidar_serial and not self.camera_serial and len(devices) > 0:
