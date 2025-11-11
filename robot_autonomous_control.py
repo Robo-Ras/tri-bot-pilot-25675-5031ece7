@@ -897,6 +897,8 @@ class WebSocketServer:
         
         while self.running:
             try:
+                frame_count += 1
+                
                 # Obtém dados dos sensores
                 lidar_data = self.sensors.get_lidar_data()  # Obstáculos no chão
                 color_image, camera_depth = self.sensors.get_camera_data()  # Altura dos objetos
@@ -936,6 +938,17 @@ class WebSocketServer:
                     'height_obstacles': height_obstacles
                 }
                 
+                # Envia frame do LiDAR como imagem de profundidade
+                if lidar_data is not None:
+                    # Normaliza dados de profundidade para visualização (0-255)
+                    depth_normalized = cv2.normalize(lidar_data, None, 0, 255, cv2.NORM_MINMAX)
+                    depth_colored = cv2.applyColorMap(depth_normalized.astype(np.uint8), cv2.COLORMAP_JET)
+                    
+                    # Envia imagem colorida do LiDAR
+                    _, lidar_buffer = cv2.imencode('.jpg', depth_colored, [cv2.IMWRITE_JPEG_QUALITY, 60])
+                    lidar_image_base64 = base64.b64encode(lidar_buffer).decode('utf-8')
+                    message['lidar_image'] = lidar_image_base64
+                
                 # Tracking de objetos e envio do frame da câmera
                 if color_image is not None:
                     # Detecta e rastreia objetos usando dados de profundidade
@@ -950,11 +963,10 @@ class WebSocketServer:
                     image_base64 = base64.b64encode(buffer).decode('utf-8')
                     message['camera'] = image_base64
                 
-                # Reconstrução 3D a cada 10 frames
-                frame_count += 1
-                if frame_count % 10 == 0:
-                    # Usa dados do LiDAR para reconstrução 3D
-                    if lidar_data is not None:
+                # Reconstrução 3D em tempo real (envia sempre que tiver dados)
+                if lidar_data is not None:
+                    # Só envia a cada 5 frames para otimização
+                    if frame_count % 5 == 0:
                         pcd = self.sensors.create_point_cloud(lidar_data, None)
                         if pcd is not None:
                             # Serializa nuvem de pontos simplificada
@@ -962,15 +974,16 @@ class WebSocketServer:
                             colors = np.asarray(pcd.colors)
                             
                             # Amostragem para reduzir tamanho
-                            if len(points) > 1000:
-                                indices = np.random.choice(len(points), 1000, replace=False)
+                            if len(points) > 1500:
+                                indices = np.random.choice(len(points), 1500, replace=False)
                                 points = points[indices]
                                 colors = colors[indices]
                             
-                            message['point_cloud'] = {
-                                'points': points.tolist(),
-                                'colors': colors.tolist()
-                            }
+                            if len(points) > 0:
+                                message['point_cloud'] = {
+                                    'points': points.tolist(),
+                                    'colors': colors.tolist()
+                                }
                 
                 await self.send_to_all(message)
             except Exception as e:

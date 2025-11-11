@@ -14,9 +14,15 @@ const Map3DVisualization = ({ pointCloud }: Map3DVisualizationProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationRef = useRef<number>();
   const rotationRef = useRef({ x: 0, y: 0 });
+  const pointCloudRef = useRef<Point3D | undefined>(pointCloud);
+
+  // Atualiza referência quando pointCloud mudar
+  useEffect(() => {
+    pointCloudRef.current = pointCloud;
+  }, [pointCloud]);
 
   useEffect(() => {
-    if (!canvasRef.current || !pointCloud) return;
+    if (!canvasRef.current) return;
 
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
@@ -49,14 +55,15 @@ const Map3DVisualization = ({ pointCloud }: Map3DVisualizationProps) => {
       }
 
       // Desenha pontos 3D
-      if (pointCloud && pointCloud.points) {
+      const currentCloud = pointCloudRef.current;
+      if (currentCloud && currentCloud.points && currentCloud.points.length > 0) {
         const centerX = width / 2;
         const centerY = height / 2;
 
         // Ordena pontos por profundidade (z) para melhor visualização
-        const sortedPoints = pointCloud.points.map((point, i) => ({
+        const sortedPoints = currentCloud.points.map((point, i) => ({
           point,
-          color: pointCloud.colors[i],
+          color: currentCloud.colors[i],
           z: point[2]
         })).sort((a, b) => b.z - a.z);
 
@@ -102,7 +109,7 @@ const Map3DVisualization = ({ pointCloud }: Map3DVisualizationProps) => {
         cancelAnimationFrame(animationRef.current);
       }
     };
-  }, [pointCloud]);
+  }, []); // Só executa uma vez no mount
 
   // Controle de rotação com mouse
   useEffect(() => {

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import DirectionalControl from "@/components/DirectionalControl";
 import MotorSpeedControl from "@/components/MotorSpeedControl";
 import { SensorVisualization } from "@/components/SensorVisualization";
+import { LidarVisualization } from "@/components/LidarVisualization";
 import { AutonomousControl } from "@/components/AutonomousControl";
 import Map3DVisualization from "@/components/Map3DVisualization";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -12,6 +13,7 @@ const Index = () => {
   const [isConnected, setIsConnected] = useState(false);
   const [autonomousMode, setAutonomousMode] = useState(false);
   const [cameraImage, setCameraImage] = useState<string>();
+  const [lidarImage, setLidarImage] = useState<string>();
   const [groundObstacles, setGroundObstacles] = useState<any>();
   const [heightObstacles, setHeightObstacles] = useState<any>();
   const [pointCloud, setPointCloud] = useState<any>();
@@ -39,6 +41,9 @@ const Index = () => {
         if (data.type === 'sensor_data') {
           if (data.camera) {
             setCameraImage(data.camera);
+          }
+          if (data.lidar_image) {
+            setLidarImage(data.lidar_image);
           }
           if (data.ground_obstacles) {
             setGroundObstacles(data.ground_obstacles);
@@ -162,6 +167,14 @@ const Index = () => {
           trackedObjects={trackedObjects}
         />
         
+        <LidarVisualization
+          lidarImage={lidarImage}
+          groundObstacles={groundObstacles}
+        />
+      </div>
+
+      {/* 3D Reconstruction Map */}
+      <div className="mb-6">
         <Map3DVisualization pointCloud={pointCloud} />
       </div>
 
