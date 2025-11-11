@@ -378,19 +378,21 @@ class RealSenseController:
 
 
 class ObjectTracker:
-    """Rastreia objetos detectados pela câmera usando apenas dados de profundidade"""
+    """Rastreia objetos detectados pela câmera usando dados de profundidade com alta precisão"""
     
-    def __init__(self, max_disappeared=30, min_area=3000, max_distance=3.0, min_distance=0.3):
+    def __init__(self, max_disappeared=15, min_area=4000, max_distance=2.5, min_distance=0.4):
         self.next_object_id = 0
         self.objects = {}  # {id: object_data}
         self.disappeared = {}  # {id: frames_disappeared}
+        self.stability_counter = {}  # {id: frames_stable}
         self.max_disappeared = max_disappeared
-        self.min_area = min_area  # Área mínima do objeto em pixels
-        self.max_distance = max_distance  # Distância máxima em metros
-        self.min_distance = min_distance  # Distância mínima em metros
+        self.min_stability = 3  # Objeto precisa aparecer em 3 frames para ser considerado válido
+        self.min_area = min_area
+        self.max_distance = max_distance
+        self.min_distance = min_distance
         
     def detect_objects(self, depth_frame):
-        """Detecta objetos usando APENAS dados de profundidade"""
+        """Detecta objetos usando dados de profundidade com filtros avançados"""
         if depth_frame is None:
             return []
         
@@ -400,16 +402,25 @@ class ObjectTracker:
             # Converte profundidade para metros
             depth_meters = depth_frame.astype(np.float32) * 0.001
             
+            # Aplica filtro bilateral para suavizar mantendo bordas
+            depth_meters = cv2.bilateralFilter(depth_meters, 9, 75, 75)
+            
             # Filtra apenas objetos na faixa de distância desejada
             valid_mask = (depth_meters > self.min_distance) & (depth_meters < self.max_distance)
             
             # Cria máscara binária
             mask = (valid_mask * 255).astype(np.uint8)
             
-            # Remove ruído
-            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9))
-            mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, iterations=2)
-            mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+            # Remove ruído com operações morfológicas agressivas
+            kernel_small = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+            kernel_large = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (11, 11))
+            
+            # Remove pequenos buracos
+            mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel_large, iterations=3)
+            # Remove pequenos objetos
+            mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel_small, iterations=2)
+            # Suaviza bordas
+            mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel_small)
             
             # Encontra contornos
             contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -421,36 +432,54 @@ class ObjectTracker:
                 if area < self.min_area:
                     continue
                 
+                # Aproxima o contorno para remover ruído
+                epsilon = 0.02 * cv2.arcLength(contour, True)
+                approx = cv2.approxPolyDP(contour, epsilon, True)
+                
                 # Calcula bounding box
-                x, y, w, h = cv2.boundingRect(contour)
+                x, y, w, h = cv2.boundingRect(approx)
                 
                 # Filtra formas muito estranhas
                 aspect_ratio = w / float(h) if h > 0 else 0
-                if aspect_ratio > 4 or aspect_ratio < 0.25:
+                if aspect_ratio > 3.5 or aspect_ratio < 0.3:
                     continue
                 
-                # Calcula centroide
-                M = cv2.moments(contour)
+                # Filtra objetos muito pequenos em relação ao bounding box (provavelmente ruído)
+                box_area = w * h
+                if area < (box_area * 0.3):  # Objeto preenche menos de 30% da box
+                    continue
+                
+                # Calcula centroide usando momentos
+                M = cv2.moments(approx)
                 if M["m00"] != 0:
                     cx = int(M["m10"] / M["m00"])
                     cy = int(M["m01"] / M["m00"])
                 else:
                     cx, cy = x + w // 2, y + h // 2
                 
-                # Calcula profundidade média na região do objeto
+                # Calcula profundidade usando múltiplas estatísticas
                 depth_region = depth_meters[y:y+h, x:x+w]
                 depth_valid = depth_region[(depth_region > self.min_distance) & (depth_region < self.max_distance)]
                 
-                if len(depth_valid) == 0:
+                if len(depth_valid) < 100:  # Precisa de pelo menos 100 pontos válidos
                     continue
                 
-                depth = float(np.median(depth_valid))
+                # Usa percentil 25-75 para robustez contra outliers
+                depth_25 = float(np.percentile(depth_valid, 25))
+                depth_75 = float(np.percentile(depth_valid, 75))
+                depth = (depth_25 + depth_75) / 2.0
+                
+                # Calcula desvio padrão - objetos com muita variação são suspeitos
+                depth_std = float(np.std(depth_valid))
+                if depth_std > 0.3:  # Variação maior que 30cm é suspeita
+                    continue
                 
                 detected_objects.append({
                     'bbox': (x, y, w, h),
                     'centroid': (cx, cy),
                     'area': int(area),
-                    'depth': round(depth, 2)
+                    'depth': round(depth, 2),
+                    'depth_std': round(depth_std, 3)
                 })
         
         except Exception as e:
@@ -460,7 +489,7 @@ class ObjectTracker:
         return detected_objects
     
     def update(self, detected_objects):
-        """Atualiza tracking dos objetos"""
+        """Atualiza tracking dos objetos com filtro de estabilidade"""
         # Se não há objetos detectados, incrementa contador de desaparecidos
         if len(detected_objects) == 0:
             for object_id in list(self.disappeared.keys()):
@@ -468,6 +497,8 @@ class ObjectTracker:
                 if self.disappeared[object_id] > self.max_disappeared:
                     del self.objects[object_id]
                     del self.disappeared[object_id]
+                    if object_id in self.stability_counter:
+                        del self.stability_counter[object_id]
             return self.get_tracked_objects()
         
         # Se não há objetos sendo rastreados, registra todos
@@ -488,7 +519,7 @@ class ObjectTracker:
             # Calcula distância entre centroides
             D = distance.cdist(object_centroids_array, detected_centroids_array)
             
-            # Encontra correspondências
+            # Encontra correspondências usando threshold menor (mais restritivo)
             rows = D.min(axis=1).argsort()
             cols = D.argmin(axis=1)[rows]
             
@@ -499,12 +530,38 @@ class ObjectTracker:
                 if row in used_rows or col in used_cols:
                     continue
                 
-                if D[row, col] > 50:  # threshold de distância máxima
+                # Threshold mais restritivo - apenas 30 pixels
+                if D[row, col] > 30:
                     continue
                 
                 object_id = object_ids[row]
-                self.objects[object_id] = detected_objects[col]
+                
+                # Atualiza objeto com suavização (média móvel)
+                old_obj = self.objects[object_id]
+                new_obj = detected_objects[col]
+                
+                # Suaviza posição e tamanho
+                alpha = 0.7  # Peso para nova detecção
+                old_x, old_y, old_w, old_h = old_obj['bbox']
+                new_x, new_y, new_w, new_h = new_obj['bbox']
+                
+                smoothed_x = int(alpha * new_x + (1 - alpha) * old_x)
+                smoothed_y = int(alpha * new_y + (1 - alpha) * old_y)
+                smoothed_w = int(alpha * new_w + (1 - alpha) * old_w)
+                smoothed_h = int(alpha * new_h + (1 - alpha) * old_h)
+                
+                new_obj['bbox'] = (smoothed_x, smoothed_y, smoothed_w, smoothed_h)
+                
+                # Suaviza profundidade
+                old_depth = old_obj.get('depth', new_obj['depth'])
+                new_obj['depth'] = round(alpha * new_obj['depth'] + (1 - alpha) * old_depth, 2)
+                
+                self.objects[object_id] = new_obj
                 self.disappeared[object_id] = 0
+                
+                # Incrementa estabilidade
+                if object_id in self.stability_counter:
+                    self.stability_counter[object_id] = min(self.stability_counter[object_id] + 1, 10)
                 
                 used_rows.add(row)
                 used_cols.add(col)
@@ -517,6 +574,8 @@ class ObjectTracker:
                 if self.disappeared[object_id] > self.max_disappeared:
                     del self.objects[object_id]
                     del self.disappeared[object_id]
+                    if object_id in self.stability_counter:
+                        del self.stability_counter[object_id]
             
             # Registra novos objetos
             unused_cols = set(range(D.shape[1])) - used_cols
@@ -529,12 +588,17 @@ class ObjectTracker:
         """Registra novo objeto"""
         self.objects[self.next_object_id] = obj
         self.disappeared[self.next_object_id] = 0
+        self.stability_counter[self.next_object_id] = 1
         self.next_object_id += 1
     
     def get_tracked_objects(self):
-        """Retorna lista de objetos rastreados"""
+        """Retorna lista de objetos rastreados (apenas os estáveis)"""
         tracked = []
         for object_id, obj_data in self.objects.items():
+            # Apenas retorna objetos estáveis
+            if self.stability_counter.get(object_id, 0) < self.min_stability:
+                continue
+                
             x, y, w, h = obj_data['bbox']
             cx, cy = obj_data['centroid']
             tracked.append({
@@ -542,7 +606,8 @@ class ObjectTracker:
                 'bbox': {'x': int(x), 'y': int(y), 'w': int(w), 'h': int(h)},
                 'centroid': {'x': int(cx), 'y': int(cy)},
                 'area': obj_data['area'],
-                'depth': obj_data.get('depth')
+                'depth': obj_data.get('depth'),
+                'stability': self.stability_counter.get(object_id, 0)
             })
         return tracked
 
