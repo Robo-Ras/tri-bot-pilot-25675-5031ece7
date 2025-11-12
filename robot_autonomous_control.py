@@ -880,14 +880,19 @@ class RobotController:
     
     def move(self, direction, speed):
         """Move o robô na direção especificada"""
+        # Configuração correta para robô omnidirecional de 3 rodas
         if direction == 'forward':
-            return self.send_command(speed, speed, speed)
+            # Frente: M1=0, M2=-velocidade, M3=velocidade
+            return self.send_command(0, -speed, speed)
         elif direction == 'backward':
-            return self.send_command(-speed, -speed, -speed)
+            # Trás: M1=0, M2=velocidade, M3=-velocidade
+            return self.send_command(0, speed, -speed)
         elif direction == 'left':
-            return self.send_command(-speed, speed, 0)
+            # Esquerda: M1=velocidade, M2=-velocidade, M3=velocidade
+            return self.send_command(speed, -speed, speed)
         elif direction == 'right':
-            return self.send_command(speed, -speed, 0)
+            # Direita: M1=-velocidade, M2=-velocidade, M3=velocidade
+            return self.send_command(-speed, -speed, speed)
         elif direction == 'stop':
             return self.send_command(0, 0, 0)
         return False
