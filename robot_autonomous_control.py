@@ -756,25 +756,20 @@ class ObstacleDetector:
 
 
 class AutonomousNavigator:
-    """Sistema de navegação autônoma com varredura do ambiente"""
+    """Sistema de navegação autônoma com rotações periódicas para mapear ambiente"""
     
     def __init__(self, obstacle_detector):
         self.detector = obstacle_detector
-        self.current_state = 'scanning'  # Estados: scanning, moving, idle
+        self.current_state = 'moving'  # Estados: moving, rotating
         self.base_speed = 100  # Velocidade base configurável
-        self.scan_data = {
-            'left': [],
-            'center': [],
-            'right': []
-        }
-        self.scan_counter = 0
-        self.scan_direction = 'left'  # Direção atual do scan
-        self.chosen_direction = None
         self.move_counter = 0
-        self.max_move_steps = 10  # Quantos passos antes de fazer novo scan
+        self.max_moves_before_rotation = 15  # Movimentos livres antes de girar 45°
+        self.rotation_counter = 0
+        self.rotation_steps = 3  # Quantos passos para completar 45 graus
+        self.free_path_counter = 0  # Conta movimentos consecutivos sem obstáculos
         
     def decide_movement(self, ground_obstacles, height_obstacles):
-        """Decide movimento baseado em varredura do ambiente"""
+        """Navegação contínua com rotações periódicas para mapear ambiente"""
         # Combina dados dos sensores
         distances = {'left': 10.0, 'center': 10.0, 'right': 10.0}
         sensor_mode = None
@@ -804,102 +799,85 @@ class AutonomousNavigator:
         detection_info = {
             'mode': sensor_mode,
             'state': self.current_state,
-            'distances': distances.copy()
+            'distances': distances.copy(),
+            'free_moves': self.free_path_counter
         }
         
-        # ==== ESTADO: SCANNING (Varredura do ambiente) ====
-        if self.current_state == 'scanning':
-            print(f"🔍 [SCANNING {self.scan_counter}/8] ", end="")
+        # ==== ESTADO: ROTATING (Girando 45° para mapear) ====
+        if self.current_state == 'rotating':
+            self.rotation_counter += 1
+            speed = int(self.base_speed * 0.5)  # Gira em velocidade média
             
-            # Coleta dados de distância durante o scan
-            self.scan_data['left'].append(distances['left'])
-            self.scan_data['center'].append(distances['center'])
-            self.scan_data['right'].append(distances['right'])
-            
-            # Fases do scanning: 0-3 gira esquerda, 4-7 gira direita
-            if self.scan_counter < 4:
-                # Fase 1: Olhar para esquerda
-                speed = int(self.base_speed * 0.4)  # Gira devagar
-                print(f"↺ Varrendo esquerda... (L:{distances['left']:.1f} C:{distances['center']:.1f} R:{distances['right']:.1f})")
-                self.scan_counter += 1
-                return 'left', speed, detection_info
-            
-            elif self.scan_counter < 8:
-                # Fase 2: Olhar para direita
-                speed = int(self.base_speed * 0.4)  # Gira devagar
-                print(f"↻ Varrendo direita... (L:{distances['left']:.1f} C:{distances['center']:.1f} R:{distances['right']:.1f})")
-                self.scan_counter += 1
+            if self.rotation_counter < self.rotation_steps:
+                print(f"🔄 [{self.rotation_counter}/{self.rotation_steps}] Rotação 45° para mapear área (vel: {speed})")
                 return 'right', speed, detection_info
-            
             else:
-                # Fase 3: Análise completa e decisão
-                print(f"📊 Analisando varredura completa...")
-                
-                # Calcula distâncias médias em cada setor
-                avg_left = sum(self.scan_data['left']) / len(self.scan_data['left'])
-                avg_center = sum(self.scan_data['center']) / len(self.scan_data['center'])
-                avg_right = sum(self.scan_data['right']) / len(self.scan_data['right'])
-                
-                print(f"   Médias: Esq={avg_left:.2f}m, Centro={avg_center:.2f}m, Dir={avg_right:.2f}m")
-                
-                # Escolhe a direção com mais espaço livre
-                max_dist = max(avg_left, avg_center, avg_right)
-                
-                if max_dist < 0.8:
-                    # Tudo bloqueado - recuar
-                    self.chosen_direction = 'backward'
-                    print(f"   ⚠️ AMBIENTE FECHADO! Recuando...")
-                elif avg_center == max_dist:
-                    # Centro livre - avançar
-                    self.chosen_direction = 'forward'
-                    print(f"   ✅ CENTRO LIVRE! Seguindo em frente (dist: {avg_center:.2f}m)")
-                elif avg_right > avg_left:
-                    # Direita mais livre
-                    self.chosen_direction = 'right'
-                    print(f"   ➡️ DIREITA LIVRE! Desviando direita (dist: {avg_right:.2f}m)")
-                else:
-                    # Esquerda mais livre
-                    self.chosen_direction = 'left'
-                    print(f"   ⬅️ ESQUERDA LIVRE! Desviando esquerda (dist: {avg_left:.2f}m)")
-                
-                # Reseta dados do scan e muda para modo MOVING
-                self.scan_data = {'left': [], 'center': [], 'right': []}
-                self.scan_counter = 0
-                self.move_counter = 0
+                # Completou rotação de 45°
+                print(f"✓ Rotação 45° completa! Retomando exploração...")
+                self.rotation_counter = 0
+                self.free_path_counter = 0
                 self.current_state = 'moving'
-                
-                # Executa primeiro movimento na direção escolhida
-                speed = int(self.base_speed * 1.0)
-                return self.chosen_direction, speed, detection_info
+                # Não move ainda, retorna stop para estabilizar
+                return 'stop', 0, detection_info
         
-        # ==== ESTADO: MOVING (Executando movimento) ====
+        # ==== ESTADO: MOVING (Navegação normal) ====
         elif self.current_state == 'moving':
             self.move_counter += 1
             
-            # Verifica se precisa fazer novo scan
-            if self.move_counter >= self.max_move_steps:
-                print(f"🔄 Completou {self.max_move_steps} movimentos - novo scan")
-                self.current_state = 'scanning'
-                self.scan_counter = 0
-                return 'stop', 0, detection_info
+            # Identifica presença de obstáculos
+            obstacle_detected = (
+                distances['center'] < 0.8 or 
+                distances['left'] < 0.6 or 
+                distances['right'] < 0.6
+            )
             
-            # Verifica obstáculo na direção atual durante movimento
-            emergency_stop = False
-            if self.chosen_direction == 'forward' and distances['center'] < 0.6:
-                emergency_stop = True
-            elif self.chosen_direction in ['left', 'right'] and min(distances.values()) < 0.5:
-                emergency_stop = True
+            if obstacle_detected:
+                # Reseta contador de caminho livre
+                self.free_path_counter = 0
+                
+                # LÓGICA DE DESVIO
+                if distances['center'] < 0.8:
+                    # Obstáculo na frente - escolhe melhor lado para desviar
+                    if distances['right'] > distances['left'] and distances['right'] > 0.8:
+                        speed = int(self.base_speed * 0.7)
+                        print(f"⚠️ OBSTÁCULO FRENTE! Desviando DIREITA (dist: {distances['right']:.2f}m, vel: {speed})")
+                        return 'right', speed, detection_info
+                    elif distances['left'] > 0.8:
+                        speed = int(self.base_speed * 0.7)
+                        print(f"⚠️ OBSTÁCULO FRENTE! Desviando ESQUERDA (dist: {distances['left']:.2f}m, vel: {speed})")
+                        return 'left', speed, detection_info
+                    else:
+                        # Tudo bloqueado - recuar
+                        speed = int(self.base_speed * 0.6)
+                        print(f"⚠️ BLOQUEADO! Recuando... (vel: {speed})")
+                        return 'backward', speed, detection_info
+                
+                elif distances['left'] < 0.6:
+                    # Obstáculo na esquerda - corrigir para direita
+                    speed = int(self.base_speed * 0.6)
+                    print(f"⚠️ OBSTÁCULO ESQUERDA! Ajustando DIREITA (dist: {distances['left']:.2f}m)")
+                    return 'right', speed, detection_info
+                
+                elif distances['right'] < 0.6:
+                    # Obstáculo na direita - corrigir para esquerda
+                    speed = int(self.base_speed * 0.6)
+                    print(f"⚠️ OBSTÁCULO DIREITA! Ajustando ESQUERDA (dist: {distances['right']:.2f}m)")
+                    return 'left', speed, detection_info
             
-            if emergency_stop:
-                print(f"⚠️ OBSTÁCULO DETECTADO! Iniciando novo scan...")
-                self.current_state = 'scanning'
-                self.scan_counter = 0
-                return 'stop', 0, detection_info
-            
-            # Continua movimento na direção escolhida
-            speed = int(self.base_speed * 1.0)
-            print(f"🚀 [{self.move_counter}/{self.max_move_steps}] Movendo {self.chosen_direction} (vel: {speed})")
-            return self.chosen_direction, speed, detection_info
+            else:
+                # CAMINHO LIVRE - avançar
+                self.free_path_counter += 1
+                speed = int(self.base_speed * 1.0)
+                
+                # Verifica se precisa fazer rotação de 45° para mapear
+                if self.free_path_counter >= self.max_moves_before_rotation:
+                    print(f"🗺️ {self.free_path_counter} movimentos livres - iniciando rotação 45° para mapear")
+                    self.current_state = 'rotating'
+                    self.rotation_counter = 0
+                    return 'stop', 0, detection_info
+                
+                print(f"✅ [{self.free_path_counter}/{self.max_moves_before_rotation}] Caminho livre! Avançando (dist: {distances['center']:.2f}m, vel: {speed})")
+                return 'forward', speed, detection_info
         
         # Estado padrão
         return 'stop', 0, detection_info
