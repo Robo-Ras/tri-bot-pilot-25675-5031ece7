@@ -30,6 +30,26 @@ const RobotFace = () => {
       console.log('Robot Face: WebSocket conectado com sucesso!');
       setConnectionStatus('connected');
       setErrorMessage('');
+      
+      // Envia status de conexão do tablet
+      websocket.send(JSON.stringify({
+        type: 'tablet_heartbeat',
+        connected: true,
+        timestamp: Date.now()
+      }));
+      
+      // Envia heartbeat a cada 3 segundos
+      const heartbeatInterval = setInterval(() => {
+        if (websocket.readyState === WebSocket.OPEN) {
+          websocket.send(JSON.stringify({
+            type: 'tablet_heartbeat',
+            connected: true,
+            timestamp: Date.now()
+          }));
+        } else {
+          clearInterval(heartbeatInterval);
+        }
+      }, 3000);
     };
 
     websocket.onmessage = (event) => {

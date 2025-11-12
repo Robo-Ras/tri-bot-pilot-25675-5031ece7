@@ -71,10 +71,15 @@ const Index = () => {
               description: `Conectado na porta ${data.port}`,
             });
           }
-        } else if (data.type === 'tablet_status') {
-          console.log('📱 Status do tablet atualizado:', data.connected);
-          setIsTabletConnected(data.connected);
+        } else if (data.type === 'tablet_heartbeat') {
+          console.log('📱 Heartbeat do tablet recebido');
+          setIsTabletConnected(true);
         }
+        
+        // Reset tablet connection after 10 seconds without heartbeat
+        const tabletTimeout = setTimeout(() => {
+          setIsTabletConnected(false);
+        }, 10000);
       };
       
       ws.onerror = (error) => {
