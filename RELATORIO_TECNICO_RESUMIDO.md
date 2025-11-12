@@ -530,7 +530,92 @@ while True:
 
 ---
 
-## 13. Limitações
+## 13. Resultados Alcançados
+
+### Funcionalidades Validadas
+
+✅ **Navegação Autônoma Operacional**
+- Sistema navega autonomamente usando câmera D435
+- Desvio de obstáculos em tempo real
+- Rotação periódica para mapeamento ambiental
+
+✅ **Detecção de Obstáculos**
+- Análise de profundidade em 3 setores (esquerda, centro, direita)
+- Distância segura configurável (0.8m frontal)
+- Taxa de atualização: 10 Hz
+
+✅ **Rastreamento de Objetos**
+- Tracking estabilizado com validação rigorosa
+- Filtros de área, distância e consistência
+- Suavização exponencial para reduzir ruído
+
+✅ **Controle de Motores**
+- Comunicação serial Arduino funcional
+- Controle manual (WASD + setas)
+- Controle autônomo com velocidade ajustável (50-200)
+
+✅ **Interface Web Responsiva**
+- Conexão WebSocket em tempo real
+- Stream de vídeo D435 (30 FPS)
+- Parada de emergência (tecla espaço)
+
+✅ **Sistema de Feedback Visual**
+- Display de emoções em tablet separado (😊/☹️)
+- Indicador de status de conexão
+- Notificações de sistema (toasts)
+
+### Métricas de Desempenho
+
+| Métrica | Resultado | Status |
+|---------|-----------|--------|
+| Latência de decisão | <100ms | ✅ Excelente |
+| FPS da câmera | 30 FPS | ✅ Conforme especificado |
+| Taxa de controle | 10 Hz | ✅ Adequado |
+| Frame transmission | 20-30 KB | ✅ Otimizado |
+| Latência WebSocket | 10-20 ms | ✅ Excelente |
+| CPU Python | 40-60% | ✅ Aceitável |
+
+### Capacidades Demonstradas
+
+🎯 **Navegação Inteligente**
+- Escolha de direção baseada em análise de múltiplos setores
+- Comportamento adaptativo (avançar, virar, recuar)
+- Mapeamento periódico via rotação 45°
+
+🎯 **Processamento em Tempo Real**
+- Pipeline completo: captura → análise → decisão → comando
+- Sincronização RGB + Depth
+- Compressão e transmissão eficiente
+
+🎯 **Segurança Operacional**
+- Parada de emergência instantânea
+- Validação de conexões antes de movimento autônomo
+- Feedback visual de status
+
+### Validações Realizadas
+
+| Teste | Resultado |
+|-------|-----------|
+| Conexão Arduino (USB) | ✅ Validado |
+| Captura D435 RGB+Depth | ✅ Validado |
+| WebSocket comunicação | ✅ Validado |
+| Detecção obstáculos | ✅ Validado |
+| Navegação autônoma camera-only | ✅ Validado |
+| Controle manual direcional | ✅ Validado |
+| Ajuste velocidade autônoma | ✅ Validado |
+| Display tablet emoções | ✅ Validado |
+
+### Ambiente de Operação
+
+- **Tipo:** Interno controlado
+- **Iluminação:** Ambiente iluminado
+- **Alcance:** 0.3m a 3.0m
+- **Superfície:** Plana
+- **Obstáculos:** Detectáveis por câmera RGB-D
+
+---
+
+## 14. Limitações
 
 1. Opera apenas com câmera D435 (LiDAR L515 não integrado)
 2. Sem mapeamento persistente (SLAM)
