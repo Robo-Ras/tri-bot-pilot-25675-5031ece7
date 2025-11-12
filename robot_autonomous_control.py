@@ -698,10 +698,12 @@ class ObstacleDetector:
         # Analisa a região central da imagem (onde obstáculos são mais relevantes)
         height, width = depth_meters.shape
         
-        # Região de interesse: área central ampla para detecção
-        roi_height = int(height * 0.8)  # 80% da altura
-        roi_width = int(width * 0.95)   # 95% da largura
-        margin_h = (height - roi_height) // 2
+        # Região de interesse: FOCO NO CENTRO e PARTE SUPERIOR (ignora chão)
+        # Usa apenas 40% da altura central (ignora chão na parte inferior)
+        # Usa 70% da largura central (ignora periferias)
+        roi_height = int(height * 0.4)  # 40% altura - região útil
+        roi_width = int(width * 0.7)    # 70% largura - foco central
+        margin_h = int(height * 0.1)    # Começa em 10% de altura (ignora chão)
         margin_w = (width - roi_width) // 2
         
         roi = depth_meters[margin_h:margin_h+roi_height, margin_w:margin_w+roi_width]
@@ -712,23 +714,30 @@ class ObstacleDetector:
         center_sector = roi[:, roi_width//3:2*roi_width//3]
         right_sector = roi[:, 2*roi_width//3:]
         
-        # DISTÂNCIA DE SEGURANÇA para navegação autônoma
-        safe_distance = 1.5  # 1.5 metros - distância segura para desvio
+        # DISTÂNCIA DE SEGURANÇA para navegação autônoma (reduzida)
+        safe_distance = 0.8  # 0.8 metros - distância mais conservadora
         
-        # Filtra valores válidos em cada setor
-        left_valid = left_sector[(left_sector > 0.2) & (left_sector < 8)]
-        center_valid = center_sector[(center_sector > 0.2) & (center_sector < 8)]
-        right_valid = right_sector[(right_sector > 0.2) & (right_sector < 8)]
+        # Filtra valores válidos em cada setor (intervalo mais restrito)
+        left_valid = left_sector[(left_sector > 0.4) & (left_sector < 5.0)]
+        center_valid = center_sector[(center_sector > 0.4) & (center_sector < 5.0)]
+        right_valid = right_sector[(right_sector > 0.4) & (right_sector < 5.0)]
         
-        # Calcula distância mínima em cada setor
-        left_min = np.min(left_valid) if len(left_valid) > 50 else 10.0
-        center_min = np.min(center_valid) if len(center_valid) > 50 else 10.0
-        right_min = np.min(right_valid) if len(right_valid) > 50 else 10.0
+        # Usa PERCENTIL 10 ao invés de MIN para ignorar ruído
+        # Requer muito mais pontos válidos para considerar obstáculo (500 pts)
+        def get_robust_distance(valid_points, min_threshold=500):
+            if len(valid_points) < min_threshold:
+                return 10.0  # Caminho livre
+            # Usa percentil 10 - ignora outliers/ruído
+            return float(np.percentile(valid_points, 10))
         
-        # Detecta obstáculos (true se dentro da distância de segurança)
-        left_blocked = bool(left_min < safe_distance)
-        center_blocked = bool(center_min < safe_distance)
-        right_blocked = bool(right_min < safe_distance)
+        left_dist = get_robust_distance(left_valid)
+        center_dist = get_robust_distance(center_valid)
+        right_dist = get_robust_distance(right_valid)
+        
+        # Detecta obstáculos apenas se MUITOS pontos estiverem próximos
+        left_blocked = bool(left_dist < safe_distance)
+        center_blocked = bool(center_dist < safe_distance)
+        right_blocked = bool(right_dist < safe_distance)
         
         height_obstacles = {
             'type': 'camera_object_detection',
@@ -736,9 +745,9 @@ class ObstacleDetector:
             'center': center_blocked,
             'right': right_blocked,
             'distances': {
-                'left': float(left_min),
-                'center': float(center_min),
-                'right': float(right_min)
+                'left': float(left_dist),
+                'center': float(center_dist),
+                'right': float(right_dist)
             },
             'sensor': 'D435'
         }
