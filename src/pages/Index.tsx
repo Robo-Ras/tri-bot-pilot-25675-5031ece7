@@ -5,7 +5,7 @@ import { SensorVisualization } from "@/components/SensorVisualization";
 import { AutonomousControl } from "@/components/AutonomousControl";
 import { SerialConnectionControl } from "@/components/SerialConnectionControl";
 import { ArduinoTroubleshooting } from "@/components/ArduinoTroubleshooting";
-import { TabletQRCodeDialog } from "@/components/TabletQRCodeDialog";
+
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 
@@ -173,10 +173,7 @@ const Index = () => {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <div className="flex items-center justify-between mb-2">
-        <h1 className="text-4xl font-bold">Tri-Bot Pilot</h1>
-        <TabletQRCodeDialog />
-      </div>
+      <h1 className="text-4xl font-bold text-center mb-2">Tri-Bot Pilot</h1>
       <p className="text-center text-muted-foreground mb-8">
         Sistema de Controle Remoto com Navegação Autônoma
       </p>
