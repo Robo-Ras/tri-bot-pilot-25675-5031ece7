@@ -756,30 +756,30 @@ class ObstacleDetector:
 
 
 class AutonomousNavigator:
-    """Sistema de navegação autônoma"""
+    """Sistema de navegação autônoma com varredura do ambiente"""
     
     def __init__(self, obstacle_detector):
         self.detector = obstacle_detector
-        self.current_state = 'idle'
+        self.current_state = 'scanning'  # Estados: scanning, moving, idle
         self.base_speed = 100  # Velocidade base configurável
+        self.scan_data = {
+            'left': [],
+            'center': [],
+            'right': []
+        }
+        self.scan_counter = 0
+        self.scan_direction = 'left'  # Direção atual do scan
+        self.chosen_direction = None
+        self.move_counter = 0
+        self.max_move_steps = 10  # Quantos passos antes de fazer novo scan
         
     def decide_movement(self, ground_obstacles, height_obstacles):
-        """Decide movimento baseado em objetos detectados pela câmera D435"""
-        # Combina informações de ambos os sensores (ou usa apenas o disponível)
-        obstacles_combined = {
-            'left': False,
-            'center': False,
-            'right': False
-        }
-        
-        distances = {
-            'left': 10.0,
-            'center': 10.0,
-            'right': 10.0
-        }
-        
-        # Identifica modo de operação
+        """Decide movimento baseado em varredura do ambiente"""
+        # Combina dados dos sensores
+        distances = {'left': 10.0, 'center': 10.0, 'right': 10.0}
         sensor_mode = None
+        
+        # Identifica modo de operação e combina distâncias
         if ground_obstacles and height_obstacles:
             sensor_mode = "lidar+camera"
         elif ground_obstacles:
@@ -787,65 +787,122 @@ class AutonomousNavigator:
         elif height_obstacles:
             sensor_mode = "camera"
         
-        # Usa dados do LiDAR se disponível
         if ground_obstacles:
-            obstacles_combined['left'] |= ground_obstacles['left']
-            obstacles_combined['center'] |= ground_obstacles['center']
-            obstacles_combined['right'] |= ground_obstacles['right']
             distances['left'] = min(distances['left'], ground_obstacles['distances']['left'])
             distances['center'] = min(distances['center'], ground_obstacles['distances']['center'])
             distances['right'] = min(distances['right'], ground_obstacles['distances']['right'])
         
-        # Usa dados da câmera D435 para detectar objetos
         if height_obstacles:
-            obstacles_combined['left'] |= height_obstacles['left']
-            obstacles_combined['center'] |= height_obstacles['center']
-            obstacles_combined['right'] |= height_obstacles['right']
             distances['left'] = min(distances['left'], height_obstacles['distances']['left'])
             distances['center'] = min(distances['center'], height_obstacles['distances']['center'])
             distances['right'] = min(distances['right'], height_obstacles['distances']['right'])
         
-        # Se não tem nenhum sensor ativo, retorna parado
         if not ground_obstacles and not height_obstacles:
             print("⚠ Nenhum sensor ativo - mantendo parado")
             return 'stop', 0, {}
         
-        # Log detalhado da detecção
         detection_info = {
             'mode': sensor_mode,
-            'obstacles': obstacles_combined.copy(),
+            'state': self.current_state,
             'distances': distances.copy()
         }
         
-        # Decisão de movimento baseada nos obstáculos detectados
-        if sensor_mode == "camera":
-            print(f"🎥 [CÂMERA D435] ", end="")
-        elif sensor_mode == "lidar":
-            print(f"📡 [LIDAR L515] ", end="")
-        else:
-            print(f"🎥📡 [DUAL] ", end="")
+        # ==== ESTADO: SCANNING (Varredura do ambiente) ====
+        if self.current_state == 'scanning':
+            print(f"🔍 [SCANNING {self.scan_counter}/8] ", end="")
+            
+            # Coleta dados de distância durante o scan
+            self.scan_data['left'].append(distances['left'])
+            self.scan_data['center'].append(distances['center'])
+            self.scan_data['right'].append(distances['right'])
+            
+            # Fases do scanning: 0-3 gira esquerda, 4-7 gira direita
+            if self.scan_counter < 4:
+                # Fase 1: Olhar para esquerda
+                speed = int(self.base_speed * 0.4)  # Gira devagar
+                print(f"↺ Varrendo esquerda... (L:{distances['left']:.1f} C:{distances['center']:.1f} R:{distances['right']:.1f})")
+                self.scan_counter += 1
+                return 'left', speed, detection_info
+            
+            elif self.scan_counter < 8:
+                # Fase 2: Olhar para direita
+                speed = int(self.base_speed * 0.4)  # Gira devagar
+                print(f"↻ Varrendo direita... (L:{distances['left']:.1f} C:{distances['center']:.1f} R:{distances['right']:.1f})")
+                self.scan_counter += 1
+                return 'right', speed, detection_info
+            
+            else:
+                # Fase 3: Análise completa e decisão
+                print(f"📊 Analisando varredura completa...")
+                
+                # Calcula distâncias médias em cada setor
+                avg_left = sum(self.scan_data['left']) / len(self.scan_data['left'])
+                avg_center = sum(self.scan_data['center']) / len(self.scan_data['center'])
+                avg_right = sum(self.scan_data['right']) / len(self.scan_data['right'])
+                
+                print(f"   Médias: Esq={avg_left:.2f}m, Centro={avg_center:.2f}m, Dir={avg_right:.2f}m")
+                
+                # Escolhe a direção com mais espaço livre
+                max_dist = max(avg_left, avg_center, avg_right)
+                
+                if max_dist < 0.8:
+                    # Tudo bloqueado - recuar
+                    self.chosen_direction = 'backward'
+                    print(f"   ⚠️ AMBIENTE FECHADO! Recuando...")
+                elif avg_center == max_dist:
+                    # Centro livre - avançar
+                    self.chosen_direction = 'forward'
+                    print(f"   ✅ CENTRO LIVRE! Seguindo em frente (dist: {avg_center:.2f}m)")
+                elif avg_right > avg_left:
+                    # Direita mais livre
+                    self.chosen_direction = 'right'
+                    print(f"   ➡️ DIREITA LIVRE! Desviando direita (dist: {avg_right:.2f}m)")
+                else:
+                    # Esquerda mais livre
+                    self.chosen_direction = 'left'
+                    print(f"   ⬅️ ESQUERDA LIVRE! Desviando esquerda (dist: {avg_left:.2f}m)")
+                
+                # Reseta dados do scan e muda para modo MOVING
+                self.scan_data = {'left': [], 'center': [], 'right': []}
+                self.scan_counter = 0
+                self.move_counter = 0
+                self.current_state = 'moving'
+                
+                # Executa primeiro movimento na direção escolhida
+                speed = int(self.base_speed * 1.0)
+                return self.chosen_direction, speed, detection_info
         
-        # Lógica de navegação com velocidade configurável
-        if not obstacles_combined['center']:
-            # Caminho livre à frente - avançar
-            speed = int(self.base_speed * 1.0)  # Velocidade cheia
-            print(f"➡️ Livre! Avançando (dist: {distances['center']:.2f}m, vel: {speed})")
-            return 'forward', speed, detection_info
-        elif not obstacles_combined['right']:
-            # Obstáculo no centro, desviar para direita
-            speed = int(self.base_speed * 0.8)  # 80% da velocidade
-            print(f"↪ OBJETO DETECTADO! Desviando direita (dist centro: {distances['center']:.2f}m, vel: {speed})")
-            return 'right', speed, detection_info
-        elif not obstacles_combined['left']:
-            # Obstáculo no centro e direita, desviar para esquerda
-            speed = int(self.base_speed * 0.8)  # 80% da velocidade
-            print(f"↩ OBJETO DETECTADO! Desviando esquerda (dist centro: {distances['center']:.2f}m, vel: {speed})")
-            return 'left', speed, detection_info
-        else:
-            # Obstáculos em todos os lados - recuar
-            speed = int(self.base_speed * 0.6)  # 60% da velocidade
-            print(f"⬅ OBJETOS EM VOLTA! Recuando (vel: {speed})")
-            return 'backward', speed, detection_info
+        # ==== ESTADO: MOVING (Executando movimento) ====
+        elif self.current_state == 'moving':
+            self.move_counter += 1
+            
+            # Verifica se precisa fazer novo scan
+            if self.move_counter >= self.max_move_steps:
+                print(f"🔄 Completou {self.max_move_steps} movimentos - novo scan")
+                self.current_state = 'scanning'
+                self.scan_counter = 0
+                return 'stop', 0, detection_info
+            
+            # Verifica obstáculo na direção atual durante movimento
+            emergency_stop = False
+            if self.chosen_direction == 'forward' and distances['center'] < 0.6:
+                emergency_stop = True
+            elif self.chosen_direction in ['left', 'right'] and min(distances.values()) < 0.5:
+                emergency_stop = True
+            
+            if emergency_stop:
+                print(f"⚠️ OBSTÁCULO DETECTADO! Iniciando novo scan...")
+                self.current_state = 'scanning'
+                self.scan_counter = 0
+                return 'stop', 0, detection_info
+            
+            # Continua movimento na direção escolhida
+            speed = int(self.base_speed * 1.0)
+            print(f"🚀 [{self.move_counter}/{self.max_move_steps}] Movendo {self.chosen_direction} (vel: {speed})")
+            return self.chosen_direction, speed, detection_info
+        
+        # Estado padrão
+        return 'stop', 0, detection_info
 
 
 class RobotController:
