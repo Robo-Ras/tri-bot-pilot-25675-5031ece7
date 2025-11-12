@@ -39,6 +39,44 @@ Interface Web (React) ←→ Backend Python ←→ Arduino
 - Alcance: 0.3m a 3.0m
 - Tecnologia: Visão estéreo ativa
 
+### Visualização do Processamento
+
+```
+┌─────────────────────────────────────────────────────┐
+│         INTEL REALSENSE D435 - PIPELINE             │
+└─────────────────────────────────────────────────────┘
+
+📸 CAPTURA (30 FPS)
+├─ Stream RGB:   640x480 BGR8
+└─ Stream Depth: 640x480 Z16 (milímetros)
+
+         ↓
+
+🔍 PROCESSAMENTO
+├─ Conversão: mm → metros
+├─ Filtros: 0.1m < depth < 3.0m
+├─ ROI: Linhas 30-70% (ignora chão/teto)
+└─ Divisão: 3 setores (Left, Center, Right)
+
+         ↓
+
+📊 ANÁLISE
+┌─────────┬──────────┬─────────┐
+│  LEFT   │  CENTER  │  RIGHT  │
+│  33%    │   34%    │  33%    │
+├─────────┼──────────┼─────────┤
+│ 2.5m ✓  │  0.6m ⚠  │ 3.0m ✓ │
+│ Livre   │ Obstáculo│ Livre   │
+└─────────┴──────────┴─────────┘
+
+         ↓
+
+📤 TRANSMISSÃO
+├─ Compressão JPEG (70%)
+├─ Base64 encoding
+└─ WebSocket → Frontend (10 Hz)
+```
+
 ### Processamento
 1. **Captura:** Frames RGB + Depth sincronizados
 2. **Conversão:** Depth em milímetros → metros
@@ -88,6 +126,87 @@ if min_distance < 0.8m:
 
 ## 6. Navegação Autônoma
 
+### Lógica de Decisão - Fluxograma
+
+```
+┌─────────────────────────────────────────────────────┐
+│       INÍCIO DO CICLO DE NAVEGAÇÃO (10 Hz)          │
+└──────────────────┬──────────────────────────────────┘
+                   ↓
+          ┌────────────────┐
+          │ Analisar 3     │
+          │ setores        │
+          │ (L, C, R)      │
+          └────────┬───────┘
+                   ↓
+          ┌────────────────┐
+          │ Centro livre?  │
+          │ (>0.8m)        │
+          └────┬───────┬───┘
+               │       │
+          SIM  │       │ NÃO
+               ↓       ↓
+        ┌──────────┐ ┌────────────────┐
+        │ AVANÇAR  │ │ Qual lado      │
+        │ (frente) │ │ está livre?    │
+        └────┬─────┘ └───┬────────┬───┘
+             │           │        │
+             │      ESQ  │        │ DIR
+             │           ↓        ↓
+             │    ┌───────────┐ ┌───────────┐
+             │    │ VIRAR     │ │ VIRAR     │
+             │    │ ESQUERDA  │ │ DIREITA   │
+             │    └─────┬─────┘ └─────┬─────┘
+             │          │             │
+             │          └──────┬──────┘
+             │                 │
+             │            AMBOS BLOQUEADOS
+             │                 ↓
+             │          ┌─────────────┐
+             │          │ MOVER P/    │
+             │          │ TRÁS (ré)   │
+             │          └──────┬──────┘
+             │                 │
+             └─────────┬───────┘
+                       ↓
+              ┌─────────────────┐
+              │ Incrementar     │
+              │ contador_livre  │
+              └────────┬────────┘
+                       ↓
+              ┌─────────────────┐
+              │ Atingiu 8       │
+              │ movimentos?     │
+              └────┬───────┬────┘
+                   │       │
+              NÃO  │       │ SIM
+                   ↓       ↓
+            ┌──────────┐ ┌────────────────┐
+            │ Continuar│ │ ROTAÇÃO 45°    │
+            │ navegando│ │ (horário)      │
+            └──────┬───┘ │ 0.8s × 6 steps │
+                   │     └────────┬───────┘
+                   │              │
+                   └──────┬───────┘
+                          ↓
+                   ┌─────────────┐
+                   │ Zerar       │
+                   │ contador    │
+                   └──────┬──────┘
+                          ↓
+                   [PRÓXIMO CICLO]
+```
+
+### Parâmetros de Decisão
+
+| Condição | Distância | Ação |
+|----------|-----------|------|
+| Centro livre | > 0.8m | Avançar |
+| Centro bloqueado | < 0.8m | Verificar laterais |
+| Lateral livre | > 0.6m | Virar para lado livre |
+| Todos bloqueados | < 0.6m | Mover para trás |
+| 8 movimentos livres | - | Rotação 45° (mapeamento) |
+
 ### Lógica de Decisão
 ```
 1. Analisa 3 setores (esq, centro, dir)
@@ -109,12 +228,71 @@ if min_distance < 0.8m:
 
 ## 7. Controle de Motores
 
-### Configuração 3 Rodas
+### Configuração 3 Rodas - Vista Superior
+
 ```
-        M1 (topo)
-           |
-    M2 ----+---- M3
-    (esq)        (dir)
+        Frente do Robô
+             ↑
+             
+       ╔═══════════╗
+       ║           ║
+    M2 ●           ● M3
+       ║           ║
+       ║     ●     ║  (Centro de rotação)
+       ║           ║
+       ║     M1    ║
+       ╚═════●═════╝
+       
+       Trás do Robô
+```
+
+### Tabela de Comandos (V = velocidade configurada)
+
+| Direção | M1 | M2 | M3 | Descrição |
+|---------|----|----|-----|-----------|
+| 🔼 **Frente** | 0 | -V | +V | M2 anti-horário, M3 horário |
+| 🔽 **Trás** | 0 | +V | -V | M2 horário, M3 anti-horário |
+| ⬅️ **Esquerda** | +V | -V | +V | Todos giram para esquerda |
+| ➡️ **Direita** | -V | -V | +V | M1/M2 horário, M3 anti-horário |
+| 🔄 **Rotação 45°** | -V | -V | -V | Todos horário (in-place) |
+| ⏸️ **Parar** | 0 | 0 | 0 | Todos motores desligados |
+
+### Exemplo Visual: Movimento para FRENTE
+
+```
+    Antes              Durante             Depois
+    
+    M2  M3            M2⟲  M3⟳           M2  M3
+     ●   ●             ↑    ↑             ●   ●
+      \ /               \  /               \ /
+       ●                 ●▲                 ●
+      M1                M1                M1
+                   (robô moveu 10cm)
+                   
+Legenda:
+⟲ = rotação anti-horária (negativo)
+⟳ = rotação horária (positivo)
+▲ = direção de movimento resultante
+```
+
+### Exemplo Visual: ROTAÇÃO 45° (in-place)
+
+```
+   Passo 1 (0°)        Passo 4 (45°)      Passo 6 (final)
+   
+   M2    M3           M2    M3              M3
+    ●─────●            ╲    ╱                ●
+    │     │             ╲  ╱                ╱ ╲
+    │  ●  │              ●                 ●   M2
+    │ M1  │             ╱  ╲                ╲ ╱
+    ●─────●            ╱    ╲                ●
+                      M1                    M1
+                      
+  Orientação: 0°     Orientação: ~22°    Orientação: 45°
+  Tempo: 0.0s        Tempo: 0.4s         Tempo: 0.8s
+  
+  Comando: M1=-100, M2=-100, M3=-100 (todos horário)
+  Duração: 0.8s × 6 repetições = mapeamento de 270°
 ```
 
 ### Comandos
@@ -135,17 +313,140 @@ if min_distance < 0.8m:
 
 ## 8. Interface Web
 
-### Componentes Principais
-- **SerialConnectionControl:** Conexão Arduino
-- **AutonomousControl:** Modo autônomo + velocidade
-- **SensorVisualization:** Câmera em tempo real
-- **DirectionalControl:** Controle manual (WASD)
+### Tela Principal
+
+> **Nota:** Para incluir screenshot da interface, capture a tela rodando e salve como `docs/tela-principal.png`
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    TRI-BOT PILOT                            │
+│         Sistema de Controle Remoto com Navegação           │
+├─────────────────────────────────────────────────────────────┤
+│ ① STATUS DE CONEXÕES                                        │
+│   🔴 Servidor Python: Desconectado                         │
+│   ⚫ Arduino: Aguardando conexão                            │
+├─────────────────────────────────────────────────────────────┤
+│ ② PORTA SERIAL                                              │
+│   [/dev/ttyUSB0 ▼] [🔄] [Conectar Arduino]                │
+├─────────────────────────────────────────────────────────────┤
+│ ③ VISUALIZAÇÃO DE SENSORES                                 │
+│   ┌───────────────────────────────────┐                    │
+│   │                                   │  Offline            │
+│   │     📹 CÂMERA D435               │                    │
+│   │     (Stream em tempo real)        │                    │
+│   │                                   │                    │
+│   └───────────────────────────────────┘                    │
+├─────────────────────────────────────────────────────────────┤
+│ ④ MODO AUTÔNOMO                                            │
+│   [🔘 OFF] O robô desviará automaticamente de objetos      │
+├─────────────────────────────────────────────────────────────┤
+│ ⑤ CONTROLE MANUAL                                          │
+│   [▶ Expandir] Use controles direcionais para mover        │
+├─────────────────────────────────────────────────────────────┤
+│ ⑥ VELOCIDADE AUTÔNOMA                          100         │
+│   Lento (50) ◀═══════●═══════▶ Rápido (200)              │
+├─────────────────────────────────────────────────────────────┤
+│ ⑦ [      PARADA DE EMERGÊNCIA      ]                       │
+│    Pressione para interromper todos os movimentos          │
+└─────────────────────────────────────────────────────────────┘
+  ⑧ Notificações (toasts no canto superior direito)
+```
+
+A interface é dividida em seções funcionais numeradas abaixo:
+
+#### 1. Área de Status de Conexões
+**Localização:** Topo da tela
+
+- **Servidor Python (vermelho/verde):** 
+  - Verde: Backend WebSocket conectado
+  - Vermelho: Backend desconectado
+  - Instrução quando offline: "Execute robot_autonomous_control.py"
+
+- **Arduino (cinza/verde):**
+  - Verde: Arduino conectado via serial
+  - Cinza: Aguardando conexão
+  - Mostra porta conectada quando ativo
+
+#### 2. Seletor de Porta Serial
+**Função:** Escolher porta USB do Arduino
+
+- Dropdown com portas disponíveis (/dev/ttyUSB0, /dev/ttyACM0, etc.)
+- Botão "Atualizar" (🔄) para reescanear portas
+- Botão "Conectar Arduino" para estabelecer comunicação serial
+
+**Diagnóstico:** Link "Problemas ao conectar?" abre guia de troubleshooting
+
+#### 3. Visualização de Sensores
+**Função:** Stream de vídeo da câmera D435 em tempo real
+
+- Área de vídeo 640x480 pixels
+- Exibe feed RGB da câmera
+- Bounding boxes de objetos rastreados (quando detectados)
+- Status "Desconectado" quando backend offline
+- Badge "Offline" no canto superior direito
+
+#### 4. Controle de Modo Autônomo
+**Função:** Ativar navegação autônoma
+
+- **Toggle Switch:** Liga/desliga modo autônomo
+- **Descrição:** "O robô desviará automaticamente de objetos detectados pela câmera"
+- **Pré-requisitos:** 
+  - Arduino conectado
+  - Backend Python rodando
+  - Câmera D435 operacional
+
+#### 5. Controle Manual
+**Função:** Movimentação manual do robô
+
+- Botão expansível "Controle Manual"
+- Controles direcionais (cima, baixo, esquerda, direita, parar)
+- Suporte a teclado: WASD, setas, espaço para parar
+- Slider de velocidade individual por motor (M1, M2, M3)
+
+#### 6. Ajuste de Velocidade Autônoma
+**Função:** Configurar velocidade antes de ativar modo autônomo
+
+- **Slider horizontal:** 50 (Lento) até 200 (Rápido)
+- **Valor padrão:** 100
+- **Label:** "Velocidade Autônoma" com valor numérico
+- **Uso:** Ajuste preventivo de velocidade antes de iniciar navegação
+
+#### 7. Botão de Parada de Emergência
+**Função:** Interromper todos os movimentos imediatamente
+
+- **Aparência:** Botão rosa/vermelho grande
+- **Texto:** "PARADA DE EMERGÊNCIA"
+- **Ação:** Envia comando de parar para todos os motores (M1=0, M2=0, M3=0)
+- **Atalho:** Tecla de espaço
+- **Uso:** Segurança em caso de comportamento inesperado
+
+#### 8. Área de Notificações
+**Função:** Feedback de sistema e erros
+
+- Toasts aparecem no canto superior direito
+- **Erro de Conexão (vermelho):** "Servidor Python não está rodando. Execute: python robot_autonomous_control.py"
+- **Sucesso (verde):** Confirmação de ações
+- **Avisos (amarelo):** Alertas de sensores offline
+
+### Fluxo de Uso Típico
+
+```
+1. Iniciar backend → python robot_autonomous_control.py
+2. Interface detecta conexão (status verde)
+3. Selecionar porta serial (/dev/ttyUSB0)
+4. Clicar "Conectar Arduino"
+5. Ajustar velocidade autônoma (ex: 100)
+6. Ativar toggle "Modo Autônomo"
+7. Robô navega autonomamente
+8. Parada de emergência se necessário
+```
 
 ### Tecnologias
 - React 18 + TypeScript
 - Vite (bundler)
 - WebSocket API nativa
 - Shadcn/ui (componentes)
+- Tailwind CSS (estilização)
 
 ---
 
