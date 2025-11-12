@@ -809,8 +809,8 @@ class AutonomousNavigator:
             speed = int(self.base_speed * 0.5)  # Gira em velocidade média
             
             if self.rotation_counter < self.rotation_steps:
-                print(f"🔄 [{self.rotation_counter}/{self.rotation_steps}] Rotação 45° para mapear área (vel: {speed})")
-                return 'right', speed, detection_info
+                print(f"🔄 [{self.rotation_counter}/{self.rotation_steps}] Rotação 45° no próprio eixo (vel: {speed})")
+                return 'rotate_right', speed, detection_info
             else:
                 # Completou rotação de 45°
                 print(f"✓ Rotação 45° completa! Retomando exploração...")
@@ -928,6 +928,12 @@ class RobotController:
         elif direction == 'right':
             # Direita: M1=-velocidade, M2=-velocidade, M3=velocidade
             return self.send_command(-speed, -speed, speed)
+        elif direction == 'rotate_right':
+            # Rotação horária no próprio eixo: todos motores mesma direção angular
+            return self.send_command(speed, speed, speed)
+        elif direction == 'rotate_left':
+            # Rotação anti-horária no próprio eixo: todos motores direção oposta
+            return self.send_command(-speed, -speed, -speed)
         elif direction == 'stop':
             return self.send_command(0, 0, 0)
         return False
