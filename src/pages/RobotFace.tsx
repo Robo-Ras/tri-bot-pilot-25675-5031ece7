@@ -6,13 +6,32 @@ import { Button } from "@/components/ui/button";
 const RobotFace = () => {
   const [isMoving, setIsMoving] = useState(false);
   const [ws, setWs] = useState<WebSocket | null>(null);
-  const [serverIp, setServerIp] = useState<string>(() => {
-    return localStorage.getItem('robot-server-ip') || '';
-  });
-  const [tempIp, setTempIp] = useState<string>(serverIp);
-  const [showConfig, setShowConfig] = useState<boolean>(!serverIp);
+  const [serverIp, setServerIp] = useState<string>('');
+  const [tempIp, setTempIp] = useState<string>('');
+  const [showConfig, setShowConfig] = useState<boolean>(false);
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected' | 'error'>('disconnected');
   const [errorMessage, setErrorMessage] = useState<string>('');
+
+  // Verifica se há IP na URL ou localStorage
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const ipFromUrl = params.get('ip');
+    
+    if (ipFromUrl) {
+      console.log('IP detectado na URL:', ipFromUrl);
+      setServerIp(ipFromUrl);
+      setTempIp(ipFromUrl);
+      localStorage.setItem('robot-server-ip', ipFromUrl);
+    } else {
+      const savedIp = localStorage.getItem('robot-server-ip');
+      if (savedIp) {
+        setServerIp(savedIp);
+        setTempIp(savedIp);
+      } else {
+        setShowConfig(true);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     if (!serverIp) {
