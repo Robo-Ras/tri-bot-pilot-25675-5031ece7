@@ -13,6 +13,7 @@ const Index = () => {
   const [isConnected, setIsConnected] = useState(false);
   const [isArduinoConnected, setIsArduinoConnected] = useState(false);
   const [autonomousMode, setAutonomousMode] = useState(false);
+  const [autonomousSpeed, setAutonomousSpeed] = useState(100);
   const [cameraImage, setCameraImage] = useState<string>();
   const [groundObstacles, setGroundObstacles] = useState<any>();
   const [heightObstacles, setHeightObstacles] = useState<any>();
@@ -121,7 +122,8 @@ const Index = () => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({
         type: 'set_autonomous',
-        enabled
+        enabled,
+        speed: autonomousSpeed
       }));
     }
     
@@ -131,6 +133,16 @@ const Index = () => {
         ? "O robô agora desviará automaticamente de obstáculos" 
         : "Use os controles manuais para mover o robô",
     });
+  };
+
+  const handleAutonomousSpeedChange = (speed: number) => {
+    setAutonomousSpeed(speed);
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN && autonomousMode) {
+      wsRef.current.send(JSON.stringify({
+        type: 'set_autonomous_speed',
+        speed
+      }));
+    }
   };
 
   const handleEmergencyStop = () => {
@@ -209,6 +221,8 @@ const Index = () => {
           autonomousMode={autonomousMode}
           onToggleAutonomous={handleToggleAutonomous}
           onEmergencyStop={handleEmergencyStop}
+          autonomousSpeed={autonomousSpeed}
+          onSpeedChange={handleAutonomousSpeedChange}
           navigationStatus={navigationStatus}
           heightObstacles={heightObstacles}
         />

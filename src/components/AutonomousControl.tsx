@@ -4,13 +4,16 @@ import { Card } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Bot, Hand, Wifi, WifiOff } from "lucide-react";
+import { Slider } from "@/components/ui/slider";
+import { Bot, Hand, Wifi, WifiOff, Gauge } from "lucide-react";
 
 interface AutonomousControlProps {
   isConnected: boolean;
   autonomousMode: boolean;
   onToggleAutonomous: (enabled: boolean) => void;
   onEmergencyStop: () => void;
+  autonomousSpeed: number;
+  onSpeedChange: (speed: number) => void;
   navigationStatus?: {
     active: boolean;
     direction?: string;
@@ -47,6 +50,8 @@ export const AutonomousControl = ({
   autonomousMode,
   onToggleAutonomous,
   onEmergencyStop,
+  autonomousSpeed,
+  onSpeedChange,
   navigationStatus,
   heightObstacles,
 }: AutonomousControlProps) => {
@@ -177,6 +182,32 @@ export const AutonomousControl = ({
             </div>
           </div>
         </div>
+
+        {/* Speed Control */}
+        {autonomousMode && (
+          <div className="space-y-3 p-4 rounded-lg bg-muted/50 border border-border">
+            <div className="flex items-center gap-2">
+              <Gauge className="w-4 h-4 text-primary" />
+              <Label className="font-semibold">Velocidade Autônoma</Label>
+              <Badge variant="outline" className="ml-auto">
+                {autonomousSpeed}
+              </Badge>
+            </div>
+            <Slider
+              value={[autonomousSpeed]}
+              onValueChange={(value) => onSpeedChange(value[0])}
+              min={50}
+              max={200}
+              step={10}
+              disabled={!isConnected}
+              className="w-full"
+            />
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>Lento (50)</span>
+              <span>Rápido (200)</span>
+            </div>
+          </div>
+        )}
 
         {/* Emergency Stop */}
         <div className="pt-4 border-t border-border">

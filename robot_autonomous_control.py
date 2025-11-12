@@ -752,6 +752,7 @@ class AutonomousNavigator:
     def __init__(self, obstacle_detector):
         self.detector = obstacle_detector
         self.current_state = 'idle'
+        self.base_speed = 100  # Velocidade base configurável
         
     def decide_movement(self, ground_obstacles, height_obstacles):
         """Decide movimento baseado em objetos detectados pela câmera D435"""
@@ -815,23 +816,27 @@ class AutonomousNavigator:
         else:
             print(f"🎥📡 [DUAL] ", end="")
         
-        # Lógica de navegação
+        # Lógica de navegação com velocidade configurável
         if not obstacles_combined['center']:
             # Caminho livre à frente - avançar
-            print(f"➡️ Livre! Avançando (dist: {distances['center']:.2f}m)")
-            return 'forward', 150, detection_info
+            speed = int(self.base_speed * 1.0)  # Velocidade cheia
+            print(f"➡️ Livre! Avançando (dist: {distances['center']:.2f}m, vel: {speed})")
+            return 'forward', speed, detection_info
         elif not obstacles_combined['right']:
             # Obstáculo no centro, desviar para direita
-            print(f"↪ OBJETO DETECTADO! Desviando direita (dist centro: {distances['center']:.2f}m)")
-            return 'right', 120, detection_info
+            speed = int(self.base_speed * 0.8)  # 80% da velocidade
+            print(f"↪ OBJETO DETECTADO! Desviando direita (dist centro: {distances['center']:.2f}m, vel: {speed})")
+            return 'right', speed, detection_info
         elif not obstacles_combined['left']:
             # Obstáculo no centro e direita, desviar para esquerda
-            print(f"↩ OBJETO DETECTADO! Desviando esquerda (dist centro: {distances['center']:.2f}m)")
-            return 'left', 120, detection_info
+            speed = int(self.base_speed * 0.8)  # 80% da velocidade
+            print(f"↩ OBJETO DETECTADO! Desviando esquerda (dist centro: {distances['center']:.2f}m, vel: {speed})")
+            return 'left', speed, detection_info
         else:
             # Obstáculos em todos os lados - recuar
-            print(f"⬅ OBJETOS EM VOLTA! Recuando")
-            return 'backward', 100, detection_info
+            speed = int(self.base_speed * 0.6)  # 60% da velocidade
+            print(f"⬅ OBJETOS EM VOLTA! Recuando (vel: {speed})")
+            return 'backward', speed, detection_info
 
 
 class RobotController:
@@ -990,7 +995,16 @@ class WebSocketServer:
             
         elif cmd_type == 'set_autonomous':
             self.autonomous_mode = data.get('enabled', False)
+            speed = data.get('speed', 100)
+            self.navigator.base_speed = speed
+            print(f"\n🤖 Modo autônomo: {'ATIVADO' if self.autonomous_mode else 'DESATIVADO'}")
+            print(f"   Velocidade base: {speed}")
             await self.send_to_all({'type': 'autonomous_status', 'enabled': self.autonomous_mode})
+        
+        elif cmd_type == 'set_autonomous_speed':
+            speed = data.get('speed', 100)
+            self.navigator.base_speed = speed
+            print(f"\n⚡ Velocidade autônoma alterada: {speed}")
     
     async def sensor_loop(self):
         """Loop principal de processamento dos sensores"""
