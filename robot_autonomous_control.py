@@ -763,7 +763,7 @@ class AutonomousNavigator:
         self.current_state = 'moving'  # Estados: moving, rotating
         self.base_speed = 100  # Velocidade base configurável
         self.move_counter = 0
-        self.max_moves_before_rotation = 15  # Movimentos livres antes de girar 45°
+        self.max_moves_before_rotation = 8  # Movimentos livres antes de girar 45° (reduzido para segurança)
         self.rotation_counter = 0
         self.rotation_steps = 3  # Quantos passos para completar 45 graus
         self.free_path_counter = 0  # Conta movimentos consecutivos sem obstáculos
