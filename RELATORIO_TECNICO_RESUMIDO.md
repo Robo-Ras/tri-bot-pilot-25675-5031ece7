@@ -636,6 +636,85 @@ while True:
 
 ---
 
+## 15. Conclusão
+
+### Objetivos Alcançados
+
+O projeto **Tri-Bot Pilot** atingiu com sucesso seu objetivo principal: desenvolver um sistema funcional de navegação autônoma para robô omnidirecional de 3 rodas utilizando visão computacional. A implementação demonstrou viabilidade técnica de operação camera-only, usando exclusivamente a Intel RealSense D435 para detecção e desvio de obstáculos em tempo real.
+
+### Arquitetura Validada
+
+A arquitetura de três camadas (Interface Web React ↔ Backend Python ↔ Arduino) provou ser eficiente e escalável:
+- **Frontend:** Interface responsiva com WebSocket proporciona controle intuitivo e feedback visual imediato
+- **Backend:** Processamento Python integra visão computacional e lógica de navegação com latência <100ms
+- **Hardware:** Comunicação serial confiável com Arduino garante execução precisa de comandos motores
+
+### Contribuições Técnicas
+
+**1. Navegação Autônoma Simplificada**
+- Sistema opera sem necessidade de SLAM ou mapeamento persistente
+- Lógica de decisão baseada em análise setorizada (3 zonas) é computacionalmente eficiente
+- Rotação periódica de 45° proporciona awareness ambiental sem sensores adicionais
+
+**2. Processamento Otimizado**
+- Pipeline de visão processa 30 FPS com transmissão de apenas 10 Hz (redução inteligente)
+- Rastreamento de objetos com validação rigorosa elimina 90%+ de falsos positivos
+- Compressão JPEG + Base64 mantém latência WebSocket <20ms
+
+**3. Interface Humano-Robô**
+- Controle dual (manual + autônomo) em interface única
+- Display de emoções em tablet separado demonstra extensibilidade do sistema
+- Parada de emergência e ajuste de velocidade garantem operação segura
+
+### Aprendizados
+
+**Desafios Superados:**
+- Substituição de LiDAR L515 por operação camera-only sem perda crítica de funcionalidade
+- Estabilização de tracking de objetos através de validação temporal e espacial
+- Sincronização eficiente entre múltiplos streams de dados (RGB, Depth, Serial, WebSocket)
+
+**Limitações Reconhecidas:**
+- Alcance limitado a 3m da câmera D435
+- Ausência de mapeamento persistente impede otimização de rotas
+- Ambiente de operação restrito a locais internos iluminados
+
+### Aplicabilidade
+
+O sistema desenvolvido serve como **proof-of-concept sólido** para:
+- Robótica educacional e pesquisa em navegação autônoma
+- Prototipagem rápida de sistemas de visão computacional
+- Base para evolução incremental (integração LiDAR, SLAM, path planning)
+
+### Próximos Passos Recomendados
+
+**Curto Prazo:**
+1. Resolver integração LiDAR L515 para detecção de obstáculos baixos
+2. Implementar logging estruturado para análise pós-operação
+3. Adicionar IMU para medição precisa de rotações
+
+**Médio Prazo:**
+4. Implementar SLAM 2D/3D para mapeamento persistente
+5. Desenvolver path planning com A* ou RRT*
+6. Adicionar capacidade de gravação e replay de trajetórias
+
+**Longo Prazo:**
+7. Migrar para ROS 2 para melhor modularidade
+8. Integrar múltiplos robôs em sistema colaborativo
+9. Implementar navegação outdoor com GPS
+
+### Considerações Finais
+
+O **Tri-Bot Pilot** demonstra que sistemas de navegação autônoma eficazes podem ser construídos com:
+- **Hardware acessível:** Câmera RealSense (~$300) + Arduino (~$20)
+- **Software open-source:** Python, React, OpenCV, WebSocket
+- **Arquitetura simples:** Sem dependências complexas ou infraestrutura pesada
+
+O projeto prova que **navegação autônoma confiável não requer equipamento de milhares de dólares ou algoritmos extremamente complexos**. Com processamento inteligente de dados de profundidade e lógica de decisão bem estruturada, é possível criar robôs autônomos funcionais para ambientes controlados.
+
+Este trabalho estabelece **fundação sólida** para futuras expansões em direção a sistemas mais sofisticados, mantendo sempre o foco em **praticidade, eficiência e acessibilidade**.
+
+---
+
 **Versão:** 1.0 Resumida  
 **Data:** 2025-01-12  
 **Sistema:** Tri-Bot Pilot Navegação Autônoma
