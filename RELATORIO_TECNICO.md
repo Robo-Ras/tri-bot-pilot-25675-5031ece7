@@ -800,6 +800,189 @@ elif all(d < 0.6 for d in distances.values()):
 
 ---
 
+## 10. Armazenamento de Dados
+
+### 10.1 Arquitetura de Armazenamento
+
+O sistema **Tri-Bot Pilot** utiliza uma abordagem de **processamento em tempo real sem persistência de dados**, otimizada para navegação autônoma responsiva e com baixa latência.
+
+### 10.2 Tipos de Armazenamento
+
+#### 10.2.1 Armazenamento Volátil (Memória RAM)
+
+**Descrição:** Todo o processamento de dados ocorre em memória RAM do notebook externo, sem escrita em disco ou banco de dados.
+
+**Dados armazenados temporariamente:**
+
+| Tipo de Dado | Estrutura | Tempo de Retenção | Tamanho Típico |
+|--------------|-----------|-------------------|----------------|
+| **Frames de câmera (RGB)** | Array NumPy (480x640x3) | 1 frame (~33ms) | ~900 KB |
+| **Frames de profundidade** | Array NumPy (480x640) uint16 | 1 frame (~33ms) | ~600 KB |
+| **Point Cloud 3D** | Array NumPy (N x 3) float | Durante processamento | ~100-500 KB |
+| **Objetos rastreados** | Dicionário Python | Até perda de tracking | ~1-10 KB |
+| **Estado de navegação** | Objeto Python | Durante execução | ~1 KB |
+| **Buffer WebSocket** | JSON serializado | Até transmissão | ~20-50 KB |
+| **Histórico de movimentos** | Lista de comandos | Últimos 8 movimentos | <1 KB |
+
+**Localização:** Memória RAM do processo Python (`robot_autonomous_control.py`)
+
+**Características:**
+- **Zero latência de I/O:** Sem leitura/escrita em disco
+- **Volatilidade:** Dados perdidos ao encerrar o programa
+- **Alto throughput:** 10 Hz de processamento completo
+- **Baixo overhead:** Sem serialização/deserialização de banco de dados
+
+#### 10.2.2 Configurações de Sistema
+
+**Descrição:** Parâmetros de configuração armazenados em variáveis Python no código-fonte.
+
+**Dados configuráveis:**
+
+```python
+# Arquivo: robot_autonomous_control.py
+class RobotController:
+    safe_distance = 0.8          # metros - distância de segurança
+    autonomous_speed = 100       # 0-255 - velocidade padrão
+    rotation_duration = 0.8      # segundos - tempo de rotação 45°
+    free_moves_threshold = 8     # movimentos antes de rotação
+    
+class ObjectTracker:
+    min_area = 4000              # pixels - área mínima de objeto
+    stability_frames = 3         # frames para validação
+    smoothing_alpha = 0.7        # fator de suavização
+```
+
+**Tipo de armazenamento:** Variáveis em código (hard-coded)
+
+**Modificação:** Requer edição manual do arquivo Python e reinicialização do sistema
+
+#### 10.2.3 Logs do Sistema
+
+**Descrição:** Mensagens de debug e status exibidas no console (stdout/stderr).
+
+**Conteúdo dos logs:**
+- Inicialização de sensores RealSense
+- Status de conexão serial com Arduino
+- Detecção de obstáculos em tempo real
+- Comandos de movimento enviados
+- Erros de comunicação WebSocket
+- Avisos de sensores offline
+
+**Armazenamento:** 
+- **Destino:** Terminal/console (não persistente)
+- **Opção de captura:** Redirecionamento manual (`python script.py > log.txt 2>&1`)
+- **Não implementado:** Sistema de logging estruturado (syslog, logging.Logger)
+
+#### 10.2.4 Estado de Sessão WebSocket
+
+**Descrição:** Cada cliente web conectado mantém estado de conexão no servidor Python.
+
+**Dados por cliente:**
+```python
+{
+    'websocket': <objeto WebSocket>,
+    'connected_time': <timestamp>,
+    'last_message': <timestamp>,
+    'client_id': <string UUID>
+}
+```
+
+**Tempo de vida:** Durante a conexão WebSocket (destruído ao desconectar)
+
+**Finalidade:** Gerenciar broadcast de dados de sensores para múltiplos clientes
+
+### 10.3 Fluxo de Dados (Não-Persistente)
+
+```
+┌──────────────────────────────────────────────────────────┐
+│                    CICLO DE VIDA DOS DADOS               │
+└──────────────────────────────────────────────────────────┘
+
+1. CAPTURA (RealSense)
+   ├─ Frames RGB + Depth capturados
+   └─ Armazenamento: Buffer de hardware (1 frame)
+   
+2. PROCESSAMENTO (Python/NumPy)
+   ├─ Conversão para arrays NumPy
+   ├─ Análise de profundidade
+   ├─ Detecção de obstáculos
+   ├─ Rastreamento de objetos
+   └─ Armazenamento: Memória RAM (1-2 segundos)
+   
+3. TRANSMISSÃO (WebSocket)
+   ├─ Serialização JSON + Base64
+   ├─ Envio para clientes web
+   └─ Armazenamento: Buffer de rede (milissegundos)
+   
+4. VISUALIZAÇÃO (Frontend)
+   ├─ Decodificação e renderização
+   └─ Armazenamento: Canvas HTML5 (1 frame)
+   
+5. DESCARTE
+   └─ Garbage collection automático (Python/JavaScript)
+```
+
+### 10.4 Justificativa: Sistema Sem Persistência
+
+**Razões técnicas para ausência de banco de dados:**
+
+1. **Natureza em tempo real:** 
+   - Navegação autônoma requer decisões em <100ms
+   - Persistência introduziria latência inaceitável (10-50ms por write)
+
+2. **Volume de dados:**
+   - 30 frames/segundo × 1.5 MB = 45 MB/s
+   - 1 hora de operação = 162 GB de dados brutos
+   - Armazenar seria impraticável e desnecessário
+
+3. **Dados efêmeros:**
+   - Informação de obstáculos válida apenas no momento atual
+   - Ambiente dinâmico invalida dados antigos
+
+4. **Simplicidade operacional:**
+   - Zero manutenção de banco de dados
+   - Sem backups ou migrations
+   - Deploy simplificado
+
+### 10.5 Dados NÃO Armazenados
+
+**Importante:** O sistema **NÃO armazena** os seguintes dados:
+
+- ❌ Histórico de trajetórias percorridas
+- ❌ Mapa do ambiente (SLAM)
+- ❌ Gravações de vídeo ou imagens
+- ❌ Telemetria histórica
+- ❌ Logs estruturados de eventos
+- ❌ Configurações de usuário
+- ❌ Perfis de performance
+
+### 10.6 Extensões Futuras de Armazenamento
+
+**Propostas para versões futuras:**
+
+1. **Logging estruturado:**
+   - Implementar Python `logging` com rotação de arquivos
+   - Formato: JSON Lines para análise automatizada
+   - Retenção: 7 dias de logs
+   - Tamanho: ~100 MB/dia
+
+2. **Gravação de sessões (opcional):**
+   - Salvar vídeo + telemetria sincronizada
+   - Formato: MP4 (vídeo) + JSON (dados)
+   - Uso: Debug e análise pós-operação
+
+3. **Banco de dados SQLite (leve):**
+   - Armazenar configurações persistentes
+   - Histórico de erros e exceções
+   - Estatísticas de uso (tempo de operação, distância percorrida)
+
+4. **SLAM persistente:**
+   - Salvar mapas 3D do ambiente
+   - Formato: PCD (Point Cloud Data) ou OctoMap
+   - Permitir reuso de mapas em sessões futuras
+
+---
+
 ## 11. Requisitos de Hardware e Software
 
 ### 11.1 Hardware
