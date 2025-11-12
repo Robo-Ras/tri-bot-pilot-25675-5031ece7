@@ -184,30 +184,28 @@ export const AutonomousControl = ({
         </div>
 
         {/* Speed Control */}
-        {autonomousMode && (
-          <div className="space-y-3 p-4 rounded-lg bg-muted/50 border border-border">
-            <div className="flex items-center gap-2">
-              <Gauge className="w-4 h-4 text-primary" />
-              <Label className="font-semibold">Velocidade Autônoma</Label>
-              <Badge variant="outline" className="ml-auto">
-                {autonomousSpeed}
-              </Badge>
-            </div>
-            <Slider
-              value={[autonomousSpeed]}
-              onValueChange={(value) => onSpeedChange(value[0])}
-              min={50}
-              max={200}
-              step={10}
-              disabled={!isConnected}
-              className="w-full"
-            />
-            <div className="flex justify-between text-xs text-muted-foreground">
-              <span>Lento (50)</span>
-              <span>Rápido (200)</span>
-            </div>
+        <div className="space-y-3 p-4 rounded-lg bg-muted/50 border border-border">
+          <div className="flex items-center gap-2">
+            <Gauge className="w-4 h-4 text-primary" />
+            <Label className="font-semibold">Velocidade Autônoma</Label>
+            <Badge variant="outline" className="ml-auto">
+              {autonomousSpeed}
+            </Badge>
           </div>
-        )}
+          <Slider
+            value={[autonomousSpeed]}
+            onValueChange={(value) => onSpeedChange(value[0])}
+            min={50}
+            max={200}
+            step={10}
+            disabled={!isConnected}
+            className="w-full"
+          />
+          <div className="flex justify-between text-xs text-muted-foreground">
+            <span>Lento (50)</span>
+            <span>Rápido (200)</span>
+          </div>
+        </div>
 
         {/* Emergency Stop */}
         <div className="pt-4 border-t border-border">
