@@ -12,6 +12,7 @@ const Index = () => {
   const [lastCommand, setLastCommand] = useState<string>("");
   const [isConnected, setIsConnected] = useState(false);
   const [isArduinoConnected, setIsArduinoConnected] = useState(false);
+  const [isTabletConnected, setIsTabletConnected] = useState(false);
   const [autonomousMode, setAutonomousMode] = useState(false);
   const [autonomousSpeed, setAutonomousSpeed] = useState(100);
   const [cameraImage, setCameraImage] = useState<string>();
@@ -70,6 +71,9 @@ const Index = () => {
               description: `Conectado na porta ${data.port}`,
             });
           }
+        } else if (data.type === 'tablet_status') {
+          console.log('📱 Status do tablet atualizado:', data.connected);
+          setIsTabletConnected(data.connected);
         }
       };
       
@@ -171,7 +175,7 @@ const Index = () => {
       </p>
       
       {/* Connection Status */}
-      <div className="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* WebSocket Status */}
         <div className={`p-4 rounded-lg border-2 ${isConnected ? 'bg-green-500/10 border-green-500' : 'bg-destructive/10 border-destructive'}`}>
           <div className="flex items-center gap-2">
@@ -191,6 +195,17 @@ const Index = () => {
           </div>
           <p className="text-sm text-muted-foreground mt-1">
             {isArduinoConnected ? 'Conectado' : 'Aguardando conexão'}
+          </p>
+        </div>
+
+        {/* Tablet Status */}
+        <div className={`p-4 rounded-lg border-2 ${isTabletConnected ? 'bg-green-500/10 border-green-500' : 'bg-muted/50 border-border'}`}>
+          <div className="flex items-center gap-2">
+            <div className={`w-3 h-3 rounded-full ${isTabletConnected ? 'bg-green-500 animate-pulse' : 'bg-muted-foreground'}`} />
+            <span className="font-semibold">Tablet (Emoções)</span>
+          </div>
+          <p className="text-sm text-muted-foreground mt-1">
+            {isTabletConnected ? 'Conectado' : 'Aguardando conexão'}
           </p>
         </div>
       </div>
