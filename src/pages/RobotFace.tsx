@@ -11,14 +11,25 @@ const RobotFace = () => {
   });
   const [tempIp, setTempIp] = useState<string>(serverIp);
   const [showConfig, setShowConfig] = useState<boolean>(!serverIp);
+  const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected' | 'error'>('disconnected');
+  const [errorMessage, setErrorMessage] = useState<string>('');
 
   useEffect(() => {
-    if (!serverIp) return;
+    if (!serverIp) {
+      setConnectionStatus('disconnected');
+      return;
+    }
+
+    console.log('Robot Face: Tentando conectar ao WebSocket:', `ws://${serverIp}:8765`);
+    setConnectionStatus('connecting');
+    setErrorMessage('');
 
     const websocket = new WebSocket(`ws://${serverIp}:8765`);
     
     websocket.onopen = () => {
-      console.log('Robot Face: WebSocket connected');
+      console.log('Robot Face: WebSocket conectado com sucesso!');
+      setConnectionStatus('connected');
+      setErrorMessage('');
     };
 
     websocket.onmessage = (event) => {
@@ -42,11 +53,14 @@ const RobotFace = () => {
     };
 
     websocket.onerror = (error) => {
-      console.error('Robot Face: WebSocket error:', error);
+      console.error('Robot Face: Erro no WebSocket:', error);
+      setConnectionStatus('error');
+      setErrorMessage(`Erro ao conectar. Verifique se o IP ${serverIp} está correto e se o backend Python está rodando na porta 8765.`);
     };
 
     websocket.onclose = () => {
-      console.log('Robot Face: WebSocket disconnected, reconnecting...');
+      console.log('Robot Face: WebSocket desconectado, tentando reconectar em 3s...');
+      setConnectionStatus('disconnected');
       setTimeout(() => {
         setWs(null);
       }, 3000);
@@ -126,8 +140,21 @@ const RobotFace = () => {
             {isMoving ? 'Em Movimento' : 'Parado'}
           </h1>
           <p className="text-muted-foreground text-xl">
-            {ws ? '🟢 Conectado' : '🔴 Desconectado'}
+            {connectionStatus === 'connected' && '🟢 Conectado'}
+            {connectionStatus === 'connecting' && '🟡 Conectando...'}
+            {connectionStatus === 'disconnected' && '🔴 Desconectado'}
+            {connectionStatus === 'error' && '🔴 Erro de Conexão'}
           </p>
+          {errorMessage && (
+            <p className="text-red-500 text-sm max-w-md mx-auto mt-4">
+              {errorMessage}
+            </p>
+          )}
+          {serverIp && (
+            <p className="text-xs text-muted-foreground mt-2">
+              Servidor: {serverIp}:8765
+            </p>
+          )}
         </div>
       </div>
     </div>
