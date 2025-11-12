@@ -765,7 +765,7 @@ class AutonomousNavigator:
         self.move_counter = 0
         self.max_moves_before_rotation = 8  # Movimentos livres antes de girar 45° (reduzido para segurança)
         self.rotation_counter = 0
-        self.rotation_steps = 3  # Quantos passos para completar 45 graus
+        self.rotation_steps = 6  # Passos para completar ~45 graus (ajustar conforme necessário)
         self.free_path_counter = 0  # Conta movimentos consecutivos sem obstáculos
         
     def decide_movement(self, ground_obstacles, height_obstacles):
@@ -806,10 +806,10 @@ class AutonomousNavigator:
         # ==== ESTADO: ROTATING (Girando 45° para mapear) ====
         if self.current_state == 'rotating':
             self.rotation_counter += 1
-            speed = int(self.base_speed * 0.5)  # Gira em velocidade média
+            speed = int(self.base_speed * 0.6)  # Velocidade mais alta para rotação visível
             
-            if self.rotation_counter < self.rotation_steps:
-                print(f"🔄 [{self.rotation_counter}/{self.rotation_steps}] Rotação 45° no próprio eixo (vel: {speed})")
+            if self.rotation_counter <= self.rotation_steps:
+                print(f"🔄 [{self.rotation_counter}/{self.rotation_steps}] ROTAÇÃO 45° HORÁRIA no próprio eixo (vel: {speed})")
                 return 'rotate_right', speed, detection_info
             else:
                 # Completou rotação de 45°
@@ -817,7 +817,7 @@ class AutonomousNavigator:
                 self.rotation_counter = 0
                 self.free_path_counter = 0
                 self.current_state = 'moving'
-                # Não move ainda, retorna stop para estabilizar
+                # Para estabilizar antes de retomar
                 return 'stop', 0, detection_info
         
         # ==== ESTADO: MOVING (Navegação normal) ====
