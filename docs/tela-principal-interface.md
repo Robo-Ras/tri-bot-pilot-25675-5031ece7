@@ -1,41 +1,13 @@
 # Screenshots da Interface - Tri-Bot Pilot
 
-## Nota sobre Imagens
+## Tela 1: Dashboard Principal (Sistema de Controle Remoto com Navegação Autônoma)
 
-Para adicionar o screenshot ao relatório técnico:
+Esta é a tela inicial do sistema onde o usuário gerencia a conexão e escolhe o modo de operação do robô. No topo, há um indicador de status que mostra se o sistema está conectado ao backend Python e ao Arduino. Logo abaixo, encontra-se um switch para alternar entre Modo Autônomo (onde o robô desvia automaticamente de obstáculos usando a câmera D435) e Controle Manual (onde o usuário comanda diretamente os movimentos). O botão vermelho "PARADA DE EMERGÊNCIA" permite interromper imediatamente todos os movimentos do robô em situações críticas. Na parte inferior, há uma instrução para executar o script `robot_autonomous_control.py` no notebook para iniciar o sistema.
 
-1. Capture um screenshot da interface rodando (`http://localhost:5173` ou preview do Lovable)
-2. Salve a imagem como `tela-principal.png` na pasta `docs/`
-3. A referência `![Interface Tri-Bot Pilot](tela-principal.png)` no relatório apontará para esta imagem
+## Tela 2: Controle Direcional
 
-## Localização da Imagem
+Esta tela oferece controle manual completo do robô através de uma interface intuitiva. O usuário pode ajustar a velocidade de movimento usando um slider que varia de 0 a 255, com entrada manual também disponível. Os botões direcionais (setas para cima, baixo, esquerda e direita) permitem movimentar o robô, enquanto o botão central vermelho para o movimento. O controle também pode ser feito via teclado usando as teclas WASD, setas direcionais ou espaço para parar. Na parte inferior, são exibidos os comandos específicos enviados para cada motor (M1, M2, M3) em cada direção, permitindo ao usuário entender como o robô omnidirecional executa cada movimento.
 
-A imagem referenciada no relatório deve estar em:
-- `docs/tela-principal.png` (mesma pasta do relatório resumido)
+## Tela 3: Dashboard de Sensores e Visualização
 
-## Como Capturar
-
-**Usando o sistema:**
-1. Execute `python robot_autonomous_control.py` no notebook
-2. Abra a interface no navegador
-3. Aguarde conexão do backend (status verde)
-4. Tire screenshot da tela completa
-5. Salve como `tela-principal.png`
-
-**Elementos importantes a capturar:**
-- Status de conexões (topo)
-- Seletor de porta serial
-- Área de visualização de câmera
-- Controles de modo autônomo
-- Botão de parada de emergência
-- Slider de velocidade
-
-## Imagens Adicionais Recomendadas
-
-Para documentação mais completa, considere adicionar:
-
-1. `tela-conectado.png` - Interface com Arduino conectado e sensores ativos
-2. `tela-autonomo-ativo.png` - Robô em navegação autônoma com objetos detectados
-3. `tela-camera-objetos.png` - Câmera mostrando bounding boxes de objetos rastreados
-4. `tela-controle-manual.png` - Seção de controle manual expandida
-5. `diagrama-arquitetura.png` - Diagrama de blocos da arquitetura do sistema
+Esta tela apresenta em tempo real todos os dados coletados pelos sensores do robô. A seção "Câmera D435 (Superior)" mostra o feed de vídeo da câmera montada na parte superior do robô, responsável por detectar objetos altos. A seção "LiDAR L515 (Inferior)" exibe dados do sensor LiDAR montado embaixo, que detecta obstáculos no chão divididos em três zonas (esquerda, centro, direita), com indicação de distância em metros. A seção "Detecção de Altura" mostra informações processadas pela câmera D435 sobre objetos altos, também dividida em três zonas. No lado direito, há uma área de "Reconstrução 3D do Ambiente" que exibe um mapa tridimensional gerado pelo LiDAR, permitindo visualizar espacialmente o ambiente ao redor do robô. Todas as seções aguardam dados dos sensores quando o sistema está iniciando.
