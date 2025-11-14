@@ -18,8 +18,11 @@ const VoiceControl = ({ onSendCommand, onToggleAutonomous, isConnected }: VoiceC
   const { toast } = useToast();
 
   useEffect(() => {
+    console.log('🎙️ Inicializando Web Speech API...');
+    
     // Verificar se o navegador suporta Web Speech API
     if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+      console.error('❌ Navegador não suporta Web Speech API');
       toast({
         title: "Navegador não suportado",
         description: "Seu navegador não suporta reconhecimento de voz. Use Chrome ou Edge.",
@@ -35,23 +38,46 @@ const VoiceControl = ({ onSendCommand, onToggleAutonomous, isConnected }: VoiceC
     recognition.continuous = true;
     recognition.interimResults = true;
     recognition.lang = 'pt-BR';
+    recognition.maxAlternatives = 1;
+
+    console.log('✅ Web Speech API configurada:', {
+      continuous: recognition.continuous,
+      interimResults: recognition.interimResults,
+      lang: recognition.lang
+    });
+
+    recognition.onstart = () => {
+      console.log('🎤 Reconhecimento de voz INICIADO');
+    };
 
     recognition.onresult = (event: any) => {
       const current = event.resultIndex;
       const transcript = event.results[current][0].transcript.toLowerCase().trim();
+      const confidence = event.results[current][0].confidence;
       
+      console.log('📝 Transcrição:', transcript, '| Confiança:', confidence);
       setTranscript(transcript);
 
       // Só processar comandos quando for resultado final
       if (event.results[current].isFinal) {
+        console.log('✅ Resultado final:', transcript);
         processCommand(transcript);
       }
     };
 
     recognition.onerror = (event: any) => {
-      console.error('Erro no reconhecimento de voz:', event.error);
+      console.error('❌ Erro no reconhecimento de voz:', event.error);
       if (event.error === 'no-speech') {
-        // Ignorar erro de "no-speech" pois é comum
+        console.log('ℹ️ Nenhuma fala detectada (normal)');
+        return;
+      }
+      if (event.error === 'not-allowed') {
+        toast({
+          title: "Permissão Negada",
+          description: "Permita o acesso ao microfone nas configurações do navegador",
+          variant: "destructive",
+        });
+        setIsListening(false);
         return;
       }
       toast({
@@ -62,15 +88,23 @@ const VoiceControl = ({ onSendCommand, onToggleAutonomous, isConnected }: VoiceC
     };
 
     recognition.onend = () => {
+      console.log('⏹️ Reconhecimento de voz FINALIZADO');
       // Reiniciar automaticamente se ainda estiver no modo listening
       if (isListening) {
-        recognition.start();
+        console.log('🔄 Reiniciando reconhecimento...');
+        try {
+          recognition.start();
+        } catch (error) {
+          console.error('❌ Erro ao reiniciar:', error);
+          setIsListening(false);
+        }
       }
     };
 
     recognitionRef.current = recognition;
 
     return () => {
+      console.log('🧹 Limpando reconhecimento de voz');
       if (recognitionRef.current) {
         recognitionRef.current.stop();
       }
@@ -122,7 +156,9 @@ const VoiceControl = ({ onSendCommand, onToggleAutonomous, isConnected }: VoiceC
     }
   };
 
-  const toggleListening = () => {
+  const toggleListening = async () => {
+    console.log('🎤 Toggle listening. Estado atual:', isListening, '| Conectado:', isConnected);
+    
     if (!isConnected) {
       toast({
         title: "Robô Desconectado",
@@ -133,6 +169,7 @@ const VoiceControl = ({ onSendCommand, onToggleAutonomous, isConnected }: VoiceC
     }
 
     if (isListening) {
+      console.log('🛑 Desativando reconhecimento...');
       recognitionRef.current?.stop();
       setIsListening(false);
       setTranscript('');
@@ -141,12 +178,29 @@ const VoiceControl = ({ onSendCommand, onToggleAutonomous, isConnected }: VoiceC
         description: "Comandos de voz desativados",
       });
     } else {
-      recognitionRef.current?.start();
-      setIsListening(true);
-      toast({
-        title: "Reconhecimento Ativado",
-        description: "Fale os comandos: frente, trás, direita, esquerda, parar, modo autônomo",
-      });
+      try {
+        console.log('▶️ Solicitando permissão do microfone...');
+        
+        // Solicitar permissão do microfone primeiro
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        console.log('✅ Permissão concedida');
+        stream.getTracks().forEach(track => track.stop()); // Liberar stream
+        
+        console.log('▶️ Iniciando reconhecimento...');
+        recognitionRef.current?.start();
+        setIsListening(true);
+        toast({
+          title: "Reconhecimento Ativado",
+          description: "🎤 Comandos: frente, trás, direita, esquerda, parar, modo autônomo",
+        });
+      } catch (error) {
+        console.error('❌ Erro ao acessar microfone:', error);
+        toast({
+          title: "Erro de Permissão",
+          description: "Permita o acesso ao microfone nas configurações do navegador",
+          variant: "destructive",
+        });
+      }
     }
   };
 
