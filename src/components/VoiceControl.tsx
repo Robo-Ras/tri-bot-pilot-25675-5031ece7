@@ -21,40 +21,57 @@ const VoiceControl = ({ onCommand, isConnected }: VoiceControlProps) => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     
     if (!SpeechRecognition) {
+      console.error('❌ Navegador não suporta reconhecimento de voz');
       toast({
         title: "Não suportado",
-        description: "Seu navegador não suporta reconhecimento de voz",
+        description: "Seu navegador não suporta reconhecimento de voz. Use Chrome ou Edge.",
         variant: "destructive"
       });
       return;
     }
 
+    console.log('✓ Inicializando reconhecimento de voz...');
     const recognitionInstance = new SpeechRecognition();
     recognitionInstance.continuous = false;
     recognitionInstance.interimResults = false;
     recognitionInstance.lang = 'pt-BR';
     recognitionInstance.maxAlternatives = 1;
 
+    recognitionInstance.onstart = () => {
+      console.log('🎤 Reconhecimento de voz iniciado');
+    };
+
     recognitionInstance.onresult = (event: any) => {
       const transcriptText = event.results[0][0].transcript.toLowerCase().trim();
+      console.log('🎙️ Texto reconhecido:', transcriptText);
       setTranscript(transcriptText);
       processVoiceCommand(transcriptText);
     };
 
     recognitionInstance.onerror = (event: any) => {
-      console.error('Speech recognition error:', event.error);
+      console.error('❌ Erro no reconhecimento de voz:', event.error);
       if (event.error !== 'no-speech' && event.error !== 'aborted') {
         setIsListening(false);
+        toast({
+          title: "Erro no reconhecimento",
+          description: `Erro: ${event.error}`,
+          variant: "destructive"
+        });
       }
     };
 
     recognitionInstance.onend = () => {
+      console.log('🔴 Reconhecimento finalizado');
+      setTranscript('');
+      // Restart if still listening
       if (isListening) {
         setTimeout(() => {
           try {
+            console.log('♻️ Reiniciando reconhecimento...');
             recognitionInstance.start();
           } catch (e) {
-            console.error('Failed to restart recognition:', e);
+            console.error('❌ Falha ao reiniciar:', e);
+            setIsListening(false);
           }
         }, 100);
       }
@@ -63,15 +80,16 @@ const VoiceControl = ({ onCommand, isConnected }: VoiceControlProps) => {
     setRecognition(recognitionInstance);
 
     return () => {
+      console.log('🧹 Limpando reconhecimento de voz');
       if (recognitionInstance) {
         try {
-          recognitionInstance.stop();
+          recognitionInstance.abort();
         } catch (e) {
-          console.error('Error stopping recognition:', e);
+          console.error('Erro ao parar recognition:', e);
         }
       }
     };
-  }, [isListening]);
+  }, []);
 
   const processVoiceCommand = (text: string) => {
     const normalized = text.toLowerCase().trim();
@@ -127,12 +145,25 @@ const VoiceControl = ({ onCommand, isConnected }: VoiceControlProps) => {
   };
 
   const toggleListening = () => {
-    if (!recognition) return;
+    if (!recognition) {
+      console.error('❌ Recognition não inicializado');
+      toast({
+        title: "Erro",
+        description: "Sistema de voz não está disponível",
+        variant: "destructive"
+      });
+      return;
+    }
 
     if (isListening) {
-      recognition.stop();
-      setIsListening(false);
-      setTranscript('');
+      console.log('⏹️ Parando reconhecimento...');
+      try {
+        recognition.abort();
+        setIsListening(false);
+        setTranscript('');
+      } catch (e) {
+        console.error('Erro ao parar:', e);
+      }
     } else {
       if (!isConnected) {
         toast({
@@ -142,8 +173,22 @@ const VoiceControl = ({ onCommand, isConnected }: VoiceControlProps) => {
         });
         return;
       }
-      recognition.start();
-      setIsListening(true);
+      console.log('▶️ Iniciando reconhecimento...');
+      try {
+        recognition.start();
+        setIsListening(true);
+        toast({
+          title: "Ouvindo",
+          description: "Fale um comando agora",
+        });
+      } catch (e) {
+        console.error('❌ Erro ao iniciar:', e);
+        toast({
+          title: "Erro",
+          description: "Não foi possível iniciar o reconhecimento",
+          variant: "destructive"
+        });
+      }
     }
   };
 
