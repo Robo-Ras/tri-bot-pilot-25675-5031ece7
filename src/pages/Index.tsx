@@ -172,20 +172,20 @@ const Index = () => {
   };
 
   const handleVoiceCommand = (command: string) => {
-    const speed = 150;
+    const speed = 60;
     
     switch (command) {
       case 'forward':
-        handleSendCommand(speed, speed, speed);
+        handleSendCommand(-speed, 0, speed);
         break;
       case 'backward':
-        handleSendCommand(-speed, -speed, -speed);
+        handleSendCommand(speed, 0, -speed);
         break;
       case 'left':
-        handleSendCommand(-speed, speed, -speed);
+        handleSendCommand(0, -speed, speed);
         break;
       case 'right':
-        handleSendCommand(speed, -speed, speed);
+        handleSendCommand(0, speed, -speed);
         break;
       case 'stop':
         handleSendCommand(0, 0, 0);
