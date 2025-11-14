@@ -1,7 +1,7 @@
 # Dependências Python para Sistema de Navegação Autônoma
 
-# Intel RealSense SDK (versão 2.56+ necessária para D435I)
-pyrealsense2>=2.56.0
+# Intel RealSense SDK
+pyrealsense2
 
 # Comunicação Serial
 pyserial

@@ -57,100 +57,40 @@ class RealSenseController:
         
     def list_devices(self):
         """Lista todos os dispositivos RealSense conectados"""
-        import time
-        
+        ctx = rs.context()
+        devices = ctx.query_devices()
         print("\n=== Dispositivos RealSense Detectados ===")
         
-        # Retry com delay para garantir que dispositivos estejam prontos
-        max_retries = 3
-        for attempt in range(max_retries):
-            try:
-                ctx = rs.context()
-                devices = ctx.query_devices()
-                
-                if len(devices) == 0:
-                    if attempt < max_retries - 1:
-                        print(f"  Tentativa {attempt + 1}/{max_retries}: Nenhum dispositivo encontrado, aguardando...")
-                        time.sleep(2)
-                        continue
-                    else:
-                        print("✗ Nenhum dispositivo RealSense encontrado!")
-                        print("  Verifique se os sensores estão conectados via USB")
-                        print("  Execute: lsusb | grep Intel")
-                        return []
-                
-                device_list = []
-                for i in range(len(devices)):
-                    try:
-                        dev = devices[i]
-                        
-                        # Tenta obter informações com retry
-                        name = None
-                        serial = None
-                        firmware = None
-                        product_line = None
-                        
-                        try:
-                            name = dev.get_info(rs.camera_info.name)
-                        except:
-                            name = "Unknown"
-                        
-                        try:
-                            serial = dev.get_info(rs.camera_info.serial_number)
-                        except:
-                            serial = f"unknown_{i}"
-                        
-                        try:
-                            firmware = dev.get_info(rs.camera_info.firmware_version)
-                        except:
-                            firmware = "Unknown"
-                        
-                        try:
-                            product_line = dev.get_info(rs.camera_info.product_line)
-                        except:
-                            product_line = "Unknown"
-                        
-                        print(f"{i+1}. {name}")
-                        print(f"   Serial: {serial}")
-                        print(f"   Firmware: {firmware}")
-                        print(f"   Linha de Produto: {product_line}")
-                        
-                        # DEBUG: Mostra valores para comparação
-                        print(f"   [DEBUG] Nome UPPER: '{name.upper()}'")
-                        print(f"   [DEBUG] Product UPPER: '{product_line.upper()}'")
-                        print(f"   [DEBUG] Tamanho nome: {len(name)}")
-                        
-                        device_list.append({
-                            'name': name, 
-                            'serial': serial, 
-                            'product_line': product_line
-                        })
-                        
-                    except RuntimeError as e:
-                        print(f"  ⚠ Erro ao acessar dispositivo {i+1}: {e}")
-                        continue
-                
-                if len(device_list) > 0:
-                    return device_list
-                else:
-                    if attempt < max_retries - 1:
-                        print(f"  Tentativa {attempt + 1}/{max_retries}: Erro ao ler dispositivos, tentando novamente...")
-                        time.sleep(2)
-                        continue
-                    else:
-                        print("✗ Não foi possível ler informações dos dispositivos")
-                        return []
-                        
-            except RuntimeError as e:
-                if attempt < max_retries - 1:
-                    print(f"  Tentativa {attempt + 1}/{max_retries}: Erro de runtime ({e}), tentando novamente...")
-                    time.sleep(2)
-                    continue
-                else:
-                    print(f"✗ Erro crítico ao acessar dispositivos: {e}")
-                    return []
+        if len(devices) == 0:
+            print("✗ Nenhum dispositivo RealSense encontrado!")
+            print("  Verifique se os sensores estão conectados via USB")
+            print("  Execute: lsusb | grep Intel")
+            return []
         
-        return []
+        device_list = []
+        for i, dev in enumerate(devices):
+            name = dev.get_info(rs.camera_info.name)
+            serial = dev.get_info(rs.camera_info.serial_number)
+            firmware = dev.get_info(rs.camera_info.firmware_version)
+            product_line = dev.get_info(rs.camera_info.product_line)
+            
+            print(f"{i+1}. {name}")
+            print(f"   Serial: {serial}")
+            print(f"   Firmware: {firmware}")
+            print(f"   Linha de Produto: {product_line}")
+            
+            # DEBUG: Mostra valores para comparação
+            print(f"   [DEBUG] Nome UPPER: '{name.upper()}'")
+            print(f"   [DEBUG] Product UPPER: '{product_line.upper()}'")
+            print(f"   [DEBUG] Tamanho nome: {len(name)}")
+            
+            device_list.append({
+                'name': name, 
+                'serial': serial, 
+                'product_line': product_line
+            })
+        
+        return device_list
     
     def identify_devices(self):
         """Identifica e atribui dispositivos baseado no modelo"""
@@ -202,9 +142,9 @@ class RealSenseController:
             print(f"      LiDAR - 'LIDAR' e 'L5': {test4}")
             
             # Testes para Câmera
-            test5 = 'D435' in name_upper or 'D435I' in name_upper
-            test6 = 'D4' in name_upper and len(name) < 30
-            test7 = 'D400' in product_upper or 'D4' in product_upper
+            test5 = 'D435' in name_upper
+            test6 = 'D4' in name_upper and len(name) < 20
+            test7 = 'D400' in product_upper
             
             print(f"      Câmera - 'D435' in nome: {test5}")
             print(f"      Câmera - 'D4' in nome (curto): {test6}")
