@@ -6,6 +6,7 @@ import { ObjectDetectionVisualization } from "@/components/ObjectDetectionVisual
 import { AutonomousControl } from "@/components/AutonomousControl";
 import { SerialConnectionControl } from "@/components/SerialConnectionControl";
 import { ArduinoTroubleshooting } from "@/components/ArduinoTroubleshooting";
+import VoiceControl from "@/components/VoiceControl";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 
@@ -170,6 +171,34 @@ const Index = () => {
     });
   };
 
+  const handleVoiceCommand = (command: string) => {
+    const speed = 150;
+    
+    switch (command) {
+      case 'forward':
+        handleSendCommand(speed, speed, speed);
+        break;
+      case 'backward':
+        handleSendCommand(-speed, -speed, -speed);
+        break;
+      case 'left':
+        handleSendCommand(-speed, speed, -speed);
+        break;
+      case 'right':
+        handleSendCommand(speed, -speed, speed);
+        break;
+      case 'stop':
+        handleSendCommand(0, 0, 0);
+        break;
+      case 'autonomous':
+        handleToggleAutonomous(true);
+        break;
+      case 'manual':
+        handleToggleAutonomous(false);
+        break;
+    }
+  };
+
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="flex items-center justify-between mb-2">
@@ -234,6 +263,14 @@ const Index = () => {
           onSpeedChange={handleAutonomousSpeedChange}
           navigationStatus={navigationStatus}
           heightObstacles={heightObstacles}
+        />
+      </div>
+
+      {/* Voice Control */}
+      <div className="mb-6">
+        <VoiceControl 
+          onCommand={handleVoiceCommand}
+          isConnected={isConnected}
         />
       </div>
 
