@@ -117,47 +117,82 @@ const VoiceControl = ({ onSendCommand, onToggleAutonomous, isConnected }: VoiceC
   }, [isListening]);
 
   const processCommand = (command: string) => {
-    console.log('Processando comando:', command);
+    console.log('🔍 Processando comando:', command);
+    console.log('🔍 Comprimento:', command.length, '| Minúscula:', command.toLowerCase());
     
     const SPEED = 60;
+    let commandExecuted = false;
 
-    // Comandos de movimento
-    if (command.includes('frente') || command.includes('para frente')) {
+    // Comandos de movimento - com mais variações
+    if (command.includes('frente') || command.includes('pra frente') || 
+        command.includes('para frente') || command.includes('avançar') ||
+        command.includes('vai') || command.includes('vá')) {
+      console.log('✅ Comando reconhecido: FRENTE');
       onSendCommand(-SPEED, 0, SPEED);
-      setLastCommand('Frente');
-      toast({ title: "Comando de Voz", description: "Movendo para frente" });
+      setLastCommand(`Frente (reconhecido: "${command}")`);
+      toast({ title: "✅ Comando de Voz", description: "Movendo para frente" });
+      commandExecuted = true;
     } 
-    else if (command.includes('trás') || command.includes('para trás') || command.includes('tras')) {
+    else if (command.includes('trás') || command.includes('tras') || 
+             command.includes('pra trás') || command.includes('para trás') ||
+             command.includes('voltar') || command.includes('ré')) {
+      console.log('✅ Comando reconhecido: TRÁS');
       onSendCommand(SPEED, 0, -SPEED);
-      setLastCommand('Trás');
-      toast({ title: "Comando de Voz", description: "Movendo para trás" });
+      setLastCommand(`Trás (reconhecido: "${command}")`);
+      toast({ title: "✅ Comando de Voz", description: "Movendo para trás" });
+      commandExecuted = true;
     } 
-    else if (command.includes('direita') || command.includes('para direita')) {
+    else if (command.includes('direita') || command.includes('pra direita') || 
+             command.includes('para direita') || command.includes('vira direita') ||
+             command.includes('virar direita')) {
+      console.log('✅ Comando reconhecido: DIREITA');
       onSendCommand(0, SPEED, -SPEED);
-      setLastCommand('Direita');
-      toast({ title: "Comando de Voz", description: "Movendo para direita" });
+      setLastCommand(`Direita (reconhecido: "${command}")`);
+      toast({ title: "✅ Comando de Voz", description: "Movendo para direita" });
+      commandExecuted = true;
     } 
-    else if (command.includes('esquerda') || command.includes('para esquerda')) {
+    else if (command.includes('esquerda') || command.includes('pra esquerda') || 
+             command.includes('para esquerda') || command.includes('vira esquerda') ||
+             command.includes('virar esquerda')) {
+      console.log('✅ Comando reconhecido: ESQUERDA');
       onSendCommand(0, -SPEED, SPEED);
-      setLastCommand('Esquerda');
-      toast({ title: "Comando de Voz", description: "Movendo para esquerda" });
+      setLastCommand(`Esquerda (reconhecido: "${command}")`);
+      toast({ title: "✅ Comando de Voz", description: "Movendo para esquerda" });
+      commandExecuted = true;
     } 
-    else if (command.includes('parar') || command.includes('pare')) {
+    else if (command.includes('parar') || command.includes('pare') || 
+             command.includes('para') || command.includes('stop')) {
+      console.log('✅ Comando reconhecido: PARAR');
       onSendCommand(0, 0, 0);
-      setLastCommand('Parar');
-      toast({ title: "Comando de Voz", description: "Robô parado" });
+      setLastCommand(`Parar (reconhecido: "${command}")`);
+      toast({ title: "✅ Comando de Voz", description: "Robô parado" });
+      commandExecuted = true;
     }
     // Comando de modo autônomo
     else if (command.includes('autônomo') || command.includes('autonomo') || 
-             command.includes('modo autônomo') || command.includes('modo autonomo')) {
+             command.includes('modo autônomo') || command.includes('modo autonomo') ||
+             command.includes('autónomo')) {
+      console.log('✅ Comando reconhecido: MODO AUTÔNOMO');
       onToggleAutonomous(true);
-      setLastCommand('Modo Autônomo Ativado');
-      toast({ title: "Comando de Voz", description: "Modo autônomo ativado" });
+      setLastCommand(`Modo Autônomo (reconhecido: "${command}")`);
+      toast({ title: "✅ Comando de Voz", description: "Modo autônomo ativado" });
+      commandExecuted = true;
     }
     else if (command.includes('manual') || command.includes('modo manual')) {
+      console.log('✅ Comando reconhecido: MODO MANUAL');
       onToggleAutonomous(false);
-      setLastCommand('Modo Manual Ativado');
-      toast({ title: "Comando de Voz", description: "Modo manual ativado" });
+      setLastCommand(`Modo Manual (reconhecido: "${command}")`);
+      toast({ title: "✅ Comando de Voz", description: "Modo manual ativado" });
+      commandExecuted = true;
+    }
+    
+    if (!commandExecuted) {
+      console.log('❌ Comando não reconhecido:', command);
+      toast({ 
+        title: "❌ Comando não reconhecido", 
+        description: `Você disse: "${command}"`,
+        variant: "destructive"
+      });
     }
   };
 
