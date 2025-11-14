@@ -14,7 +14,12 @@ const VoiceControl = ({ onSendCommand, onToggleAutonomous, isConnected }: VoiceC
   const [isListening, setIsListening] = useState(false);
   const [lastCommand, setLastCommand] = useState<string>('');
   const [transcript, setTranscript] = useState<string>('');
+  const [audioLevel, setAudioLevel] = useState<number>(0);
+  const [micPermission, setMicPermission] = useState<'granted' | 'denied' | 'prompt'>('prompt');
   const recognitionRef = useRef<any>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const animationFrameRef = useRef<number>(0);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -156,6 +161,59 @@ const VoiceControl = ({ onSendCommand, onToggleAutonomous, isConnected }: VoiceC
     }
   };
 
+  const startAudioMonitoring = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      
+      audioContextRef.current = new AudioContext();
+      analyserRef.current = audioContextRef.current.createAnalyser();
+      const source = audioContextRef.current.createMediaStreamSource(stream);
+      source.connect(analyserRef.current);
+      
+      analyserRef.current.fftSize = 256;
+      const bufferLength = analyserRef.current.frequencyBinCount;
+      const dataArray = new Uint8Array(bufferLength);
+      
+      const updateAudioLevel = () => {
+        if (!analyserRef.current) return;
+        
+        analyserRef.current.getByteFrequencyData(dataArray);
+        const average = dataArray.reduce((a, b) => a + b) / bufferLength;
+        setAudioLevel(Math.min(100, (average / 255) * 200));
+        
+        animationFrameRef.current = requestAnimationFrame(updateAudioLevel);
+      };
+      
+      updateAudioLevel();
+      console.log('✅ Monitoramento de áudio iniciado');
+    } catch (error) {
+      console.error('❌ Erro ao monitorar áudio:', error);
+    }
+  };
+
+  const stopAudioMonitoring = () => {
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+    }
+    if (audioContextRef.current) {
+      audioContextRef.current.close();
+      audioContextRef.current = null;
+    }
+    analyserRef.current = null;
+    setAudioLevel(0);
+    console.log('⏹️ Monitoramento de áudio parado');
+  };
+
+  const checkMicPermission = async () => {
+    try {
+      const result = await navigator.permissions.query({ name: 'microphone' as PermissionName });
+      setMicPermission(result.state as 'granted' | 'denied' | 'prompt');
+      console.log('🎤 Permissão do microfone:', result.state);
+    } catch (error) {
+      console.log('ℹ️ Não foi possível verificar permissão automaticamente');
+    }
+  };
+
   const toggleListening = async () => {
     console.log('🎤 Toggle listening. Estado atual:', isListening, '| Conectado:', isConnected);
     
@@ -173,6 +231,7 @@ const VoiceControl = ({ onSendCommand, onToggleAutonomous, isConnected }: VoiceC
       recognitionRef.current?.stop();
       setIsListening(false);
       setTranscript('');
+      stopAudioMonitoring();
       toast({
         title: "Reconhecimento Desativado",
         description: "Comandos de voz desativados",
@@ -181,10 +240,9 @@ const VoiceControl = ({ onSendCommand, onToggleAutonomous, isConnected }: VoiceC
       try {
         console.log('▶️ Solicitando permissão do microfone...');
         
-        // Solicitar permissão do microfone primeiro
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        await startAudioMonitoring();
+        setMicPermission('granted');
         console.log('✅ Permissão concedida');
-        stream.getTracks().forEach(track => track.stop()); // Liberar stream
         
         console.log('▶️ Iniciando reconhecimento...');
         recognitionRef.current?.start();
@@ -195,6 +253,7 @@ const VoiceControl = ({ onSendCommand, onToggleAutonomous, isConnected }: VoiceC
         });
       } catch (error) {
         console.error('❌ Erro ao acessar microfone:', error);
+        setMicPermission('denied');
         toast({
           title: "Erro de Permissão",
           description: "Permita o acesso ao microfone nas configurações do navegador",
@@ -203,6 +262,13 @@ const VoiceControl = ({ onSendCommand, onToggleAutonomous, isConnected }: VoiceC
       }
     }
   };
+
+  useEffect(() => {
+    checkMicPermission();
+    return () => {
+      stopAudioMonitoring();
+    };
+  }, []);
 
   return (
     <Card className="p-6">
@@ -252,17 +318,54 @@ const VoiceControl = ({ onSendCommand, onToggleAutonomous, isConnected }: VoiceC
         
         {/* Área de feedback - mostra sempre quando conectado */}
         {isConnected && (
-          <div className="mt-4 p-4 bg-accent/20 rounded-lg border border-accent/30">
-            <div className="flex items-center gap-2 mb-2">
-              <div className={`w-3 h-3 rounded-full ${isListening ? 'bg-green-500 animate-pulse' : 'bg-muted'}`} />
-              <p className="text-sm font-medium">
-                {isListening ? 'Sistema ativo - fale agora' : 'Sistema inativo'}
-              </p>
+          <div className="mt-4 p-4 bg-muted/50 rounded-lg border border-border space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Status:</span>
+              <span className={`text-sm font-medium ${isListening ? "text-green-500" : "text-muted-foreground"}`}>
+                {isListening ? "🎤 Ativo" : "⏸️ Inativo"}
+              </span>
             </div>
             
-            <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Microfone:</span>
+              <span className={`text-sm font-medium ${
+                micPermission === 'granted' ? "text-green-500" : 
+                micPermission === 'denied' ? "text-red-500" : 
+                "text-yellow-500"
+              }`}>
+                {micPermission === 'granted' ? '✅ Permitido' : 
+                 micPermission === 'denied' ? '❌ Negado - Verifique configurações do navegador' : 
+                 '⚠️ Aguardando permissão'}
+              </span>
+            </div>
+            
+            {isListening && (
+              <div className="space-y-2 pt-2 border-t border-border">
+                <div>
+                  <span className="text-sm text-muted-foreground">Nível de áudio:</span>
+                  <div className="mt-1.5 h-3 bg-background rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-gradient-to-r from-green-500 to-green-400 transition-all duration-100"
+                      style={{ width: `${audioLevel}%` }}
+                    />
+                  </div>
+                  {audioLevel < 5 && (
+                    <p className="text-xs text-yellow-500 mt-1.5">
+                      ⚠️ Nenhum áudio detectado - fale mais alto ou verifique seu microfone
+                    </p>
+                  )}
+                  {audioLevel >= 5 && (
+                    <p className="text-xs text-green-500 mt-1.5">
+                      ✅ Áudio sendo detectado
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+            
+            <div className="space-y-2 pt-2 border-t border-border">
               <div>
-                <p className="text-xs text-muted-foreground">Reconhecido agora:</p>
+                <p className="text-xs text-muted-foreground mb-1">Reconhecido agora:</p>
                 <p className="text-sm font-mono bg-background/50 p-2 rounded min-h-[2rem]">
                   {transcript || '---'}
                 </p>
@@ -270,7 +373,7 @@ const VoiceControl = ({ onSendCommand, onToggleAutonomous, isConnected }: VoiceC
               
               {lastCommand && (
                 <div>
-                  <p className="text-xs text-muted-foreground">Comando executado:</p>
+                  <p className="text-xs text-muted-foreground mb-1">Comando executado:</p>
                   <p className="text-sm font-semibold text-primary bg-background/50 p-2 rounded">
                     {lastCommand}
                   </p>
