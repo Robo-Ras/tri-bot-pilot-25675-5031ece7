@@ -16,6 +16,7 @@ const Index = () => {
   const [autonomousMode, setAutonomousMode] = useState(false);
   const [autonomousSpeed, setAutonomousSpeed] = useState(100);
   const [cameraImage, setCameraImage] = useState<string>();
+  const [l515CameraImage, setL515CameraImage] = useState<string>();
   const [groundObstacles, setGroundObstacles] = useState<any>();
   const [heightObstacles, setHeightObstacles] = useState<any>();
   const [trackedObjects, setTrackedObjects] = useState<any>();
@@ -47,6 +48,9 @@ const Index = () => {
         if (data.type === 'sensor_data') {
           if (data.camera) {
             setCameraImage(data.camera);
+          }
+          if (data.l515_camera) {
+            setL515CameraImage(data.l515_camera);
           }
           if (data.detected_objects) {
             setDetectedObjects(data.detected_objects);
@@ -233,10 +237,10 @@ const Index = () => {
         />
       </div>
 
-      {/* Detecção de Objetos L515 */}
+      {/* Detecção de Objetos L515 com MediaPipe */}
       <div className="mb-6">
         <ObjectDetectionVisualization
-          cameraImage={cameraImage}
+          cameraImage={l515CameraImage || cameraImage}
           detectedObjects={detectedObjects}
         />
       </div>

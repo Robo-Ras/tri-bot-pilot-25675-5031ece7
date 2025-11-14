@@ -241,9 +241,16 @@ class RealSenseController:
                 config_lidar = rs.config()
                 config_lidar.enable_device(self.lidar_serial)
                 
-                # NÃO força configuração específica - deixa usar padrão
-                print("  Iniciando pipeline com configuração padrão...")
+                # Configura L515 com COLOR + DEPTH (para MediaPipe)
+                print("  Configurando L515 com color + depth...")
+                config_lidar.enable_stream(rs.stream.color, 640, 480, rs.format.bgr8, 30)
+                config_lidar.enable_stream(rs.stream.depth, 320, 240, rs.format.z16, 30)
+                
+                print("  Iniciando pipeline...")
                 profile = self.pipeline_lidar.start(config_lidar)
+                
+                # Cria alinhamento para MediaPipe
+                self.align_to_color = rs.align(rs.stream.color)
                 
                 print("  ✓ Pipeline iniciado!")
                 
@@ -412,7 +419,7 @@ class RealSenseController:
             return False
     
     def get_lidar_data(self):
-        """Obtém dados do LiDAR (obstáculos no chão)"""
+        """Obtém dados do LiDAR (obstáculos no chão) - apenas profundidade"""
         if not self.lidar_started or not self.pipeline_lidar:
             return None
         
@@ -433,6 +440,31 @@ class RealSenseController:
         except Exception as e:
             print(f"Erro ao obter dados do LiDAR: {e}")
             return None
+    
+    def get_lidar_color_depth(self):
+        """Obtém COLOR + DEPTH do L515 para MediaPipe"""
+        if not self.lidar_started or not self.pipeline_lidar:
+            return None, None
+        
+        try:
+            frames = self.pipeline_lidar.wait_for_frames(timeout_ms=1000)
+            
+            # Alinha depth ao color para MediaPipe
+            aligned_frames = self.align_to_color.process(frames)
+            
+            color_frame = aligned_frames.get_color_frame()
+            depth_frame = aligned_frames.get_depth_frame()
+            
+            if not color_frame or not depth_frame:
+                return None, None
+            
+            color_image = np.asanyarray(color_frame.get_data())
+            depth_image = np.asanyarray(depth_frame.get_data())
+            
+            return color_image, depth_image
+        except Exception as e:
+            # Silencioso - não atrapalha fluxo principal
+            return None, None
     
     def get_camera_data(self):
         """Obtém dados da câmera (verificação de altura)"""
@@ -1176,19 +1208,30 @@ class WebSocketServer:
                     if tracked_objects:
                         message['tracked_objects'] = tracked_objects
                     
-                    # Detecção de objetos com MediaPipe (L515)
-                    if self.mediapipe_detector is not None and lidar_data is not None:
+                    # Detecção de objetos com MediaPipe usando L515 (color + depth)
+                    if self.mediapipe_detector is not None:
                         try:
-                            # Obtém escala de profundidade
-                            depth_scale = self.sensors.pipeline_lidar.get_active_profile().get_device().first_depth_sensor().get_depth_scale()
-                            # Detecta objetos com MediaPipe
-                            detected_objects = self.mediapipe_detector.detect_objects(
-                                color_image, 
-                                lidar_data, 
-                                depth_scale
-                            )
-                            if detected_objects:
-                                message['detected_objects'] = detected_objects
+                            # Obtém COLOR + DEPTH do L515 especificamente
+                            l515_color, l515_depth = self.sensors.get_lidar_color_depth()
+                            
+                            if l515_color is not None and l515_depth is not None:
+                                # Obtém escala de profundidade do L515
+                                depth_scale = self.sensors.pipeline_lidar.get_active_profile().get_device().first_depth_sensor().get_depth_scale()
+                                
+                                # Detecta objetos com MediaPipe usando dados do L515
+                                detected_objects = self.mediapipe_detector.detect_objects(
+                                    l515_color, 
+                                    l515_depth, 
+                                    depth_scale
+                                )
+                                
+                                if detected_objects:
+                                    message['detected_objects'] = detected_objects
+                                    
+                                # Também envia a imagem do L515 para visualização MediaPipe
+                                _, l515_buffer = cv2.imencode('.jpg', l515_color, [cv2.IMWRITE_JPEG_QUALITY, 60])
+                                l515_image_base64 = base64.b64encode(l515_buffer).decode('utf-8')
+                                message['l515_camera'] = l515_image_base64
                         except Exception as e:
                             # Silenciosamente ignora erros do MediaPipe para não atrapalhar o fluxo
                             pass
