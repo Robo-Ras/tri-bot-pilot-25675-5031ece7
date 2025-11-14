@@ -9,23 +9,23 @@ interface DirectionalControlProps {
 }
 
 const DirectionalControl = ({ onSendCommand }: DirectionalControlProps) => {
-  const [speed, setSpeed] = useState(180);
+  const [speed, setSpeed] = useState(60);
   const [activeDirection, setActiveDirection] = useState<string | null>(null);
 
   const moveForward = () => {
-    onSendCommand(0, -speed, speed);
+    onSendCommand(-speed, 0, speed);
     setActiveDirection('forward');
   };
   const moveBackward = () => {
-    onSendCommand(0, speed, -speed);
+    onSendCommand(speed, 0, -speed);
     setActiveDirection('backward');
   };
   const moveRight = () => {
-    onSendCommand(-speed, -speed, speed);
+    onSendCommand(0, speed, -speed);
     setActiveDirection('right');
   };
   const moveLeft = () => {
-    onSendCommand(speed, -speed, speed);
+    onSendCommand(0, -speed, speed);
     setActiveDirection('left');
   };
   const stop = () => {
@@ -150,10 +150,10 @@ const DirectionalControl = ({ onSendCommand }: DirectionalControlProps) => {
 
       <div className="text-xs text-muted-foreground text-center space-y-1">
         <p><strong>Comandos:</strong></p>
-        <p>Frente: M1=0, M2=-{speed}, M3={speed}</p>
-        <p>Trás: M1=0, M2={speed}, M3=-{speed}</p>
-        <p>Direita: M1=-{speed}, M2=-{speed}, M3={speed}</p>
-        <p>Esquerda: M1={speed}, M2=-{speed}, M3={speed}</p>
+        <p>Frente: M1=-{speed}, M2=0, M3={speed}</p>
+        <p>Trás: M1={speed}, M2=0, M3=-{speed}</p>
+        <p>Direita: M1=0, M2={speed}, M3=-{speed}</p>
+        <p>Esquerda: M1=0, M2=-{speed}, M3={speed}</p>
       </div>
     </div>
   );
