@@ -30,27 +30,34 @@ const VoiceControl = ({ onCommand, isConnected }: VoiceControlProps) => {
       return;
     }
 
-    console.log('✓ Inicializando reconhecimento de voz...');
+    console.log('✓ Inicializando reconhecimento de voz contínuo...');
     const recognitionInstance = new SpeechRecognition();
-    recognitionInstance.continuous = false;
+    recognitionInstance.continuous = true;
     recognitionInstance.interimResults = false;
     recognitionInstance.lang = 'pt-BR';
     recognitionInstance.maxAlternatives = 1;
 
     recognitionInstance.onstart = () => {
-      console.log('🎤 Reconhecimento de voz iniciado');
+      console.log('🎤 Reconhecimento de voz iniciado (modo contínuo)');
     };
 
     recognitionInstance.onresult = (event: any) => {
-      const transcriptText = event.results[0][0].transcript.toLowerCase().trim();
-      console.log('🎙️ Texto reconhecido:', transcriptText);
-      setTranscript(transcriptText);
-      processVoiceCommand(transcriptText);
+      const lastResult = event.results[event.results.length - 1];
+      if (lastResult.isFinal) {
+        const transcriptText = lastResult[0].transcript.toLowerCase().trim();
+        console.log('🎙️ Texto reconhecido:', transcriptText);
+        setTranscript(transcriptText);
+        processVoiceCommand(transcriptText);
+      }
     };
 
     recognitionInstance.onerror = (event: any) => {
       console.error('❌ Erro no reconhecimento de voz:', event.error);
-      if (event.error !== 'no-speech' && event.error !== 'aborted') {
+      if (event.error === 'no-speech') {
+        // Ignorar erro de silêncio, é normal
+        return;
+      }
+      if (event.error !== 'aborted') {
         setIsListening(false);
         toast({
           title: "Erro no reconhecimento",
@@ -62,18 +69,17 @@ const VoiceControl = ({ onCommand, isConnected }: VoiceControlProps) => {
 
     recognitionInstance.onend = () => {
       console.log('🔴 Reconhecimento finalizado');
-      setTranscript('');
-      // Restart if still listening
+      // Restart automatically if still listening
       if (isListening) {
         setTimeout(() => {
           try {
-            console.log('♻️ Reiniciando reconhecimento...');
+            console.log('♻️ Reiniciando reconhecimento automático...');
             recognitionInstance.start();
           } catch (e) {
             console.error('❌ Falha ao reiniciar:', e);
             setIsListening(false);
           }
-        }, 100);
+        }, 200);
       }
     };
 
@@ -94,54 +100,37 @@ const VoiceControl = ({ onCommand, isConnected }: VoiceControlProps) => {
   const processVoiceCommand = (text: string) => {
     const normalized = text.toLowerCase().trim();
     
-    // Command mapping - ordem importa, mais específicos primeiro
+    // Command mapping - APENAS UM COMANDO POR DIREÇÃO
     const commands: { [key: string]: string } = {
-      'para frente': 'forward',
       'frente': 'forward',
-      'vá para frente': 'forward',
       'para trás': 'backward',
-      'trás': 'backward',
       'tras': 'backward',
-      'ré': 'backward',
-      're': 'backward',
-      'voltar': 'backward',
       'esquerda': 'left',
-      'vire à esquerda': 'left',
-      'virar esquerda': 'left',
       'direita': 'right',
-      'vire à direita': 'right',
-      'virar direita': 'right',
       'parar': 'stop',
-      'pare': 'stop',
-      'parado': 'stop',
-      'modo autônomo': 'autonomous',
       'autônomo': 'autonomous',
       'autonomo': 'autonomous',
-      'modo manual': 'manual',
       'manual': 'manual'
     };
 
     // Check if any command matches
     for (const [phrase, command] of Object.entries(commands)) {
-      if (normalized.includes(phrase)) {
+      if (normalized === phrase || normalized.includes(phrase)) {
         console.log('✓ Comando reconhecido:', phrase, '→', command);
         onCommand(command);
         toast({
-          title: "✓ Comando reconhecido",
-          description: `"${phrase}" → ${command}`,
+          title: "✓ Comando executado",
+          description: phrase,
         });
-        setTranscript('');
+        // Limpa o transcript após 1 segundo
+        setTimeout(() => setTranscript(''), 1000);
         return;
       }
     }
     
     console.log('✗ Comando não reconhecido:', normalized);
-    toast({
-      title: "Comando não reconhecido",
-      description: `"${normalized}"`,
-      variant: "destructive"
-    });
-    setTranscript('');
+    // Não mostra erro para evitar spam de toasts
+    setTimeout(() => setTranscript(''), 1000);
   };
 
   const toggleListening = () => {
@@ -231,15 +220,15 @@ const VoiceControl = ({ onCommand, isConnected }: VoiceControlProps) => {
         <div className="text-xs text-muted-foreground space-y-1">
           <p className="font-semibold">Comandos disponíveis:</p>
           <ul className="list-disc list-inside space-y-0.5">
-            <li><strong>Frente:</strong> "frente", "para frente"</li>
-            <li><strong>Trás:</strong> "trás", "para trás", "ré", "voltar"</li>
-            <li><strong>Esquerda:</strong> "esquerda", "virar esquerda"</li>
-            <li><strong>Direita:</strong> "direita", "virar direita"</li>
-            <li><strong>Parar:</strong> "parar", "pare"</li>
-            <li><strong>Autônomo:</strong> "modo autônomo", "autônomo"</li>
-            <li><strong>Manual:</strong> "modo manual", "manual"</li>
+            <li><strong>Frente</strong></li>
+            <li><strong>Para trás</strong> (ou "tras")</li>
+            <li><strong>Esquerda</strong></li>
+            <li><strong>Direita</strong></li>
+            <li><strong>Parar</strong></li>
+            <li><strong>Autônomo</strong></li>
+            <li><strong>Manual</strong></li>
           </ul>
-          <p className="text-xs mt-2 italic">💡 Fale de forma clara e pausada</p>
+          <p className="text-xs mt-2 italic">💡 Modo contínuo: fale vários comandos seguidos</p>
         </div>
       </div>
     </Card>
