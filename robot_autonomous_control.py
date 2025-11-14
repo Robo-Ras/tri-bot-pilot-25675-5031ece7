@@ -3,6 +3,7 @@ Sistema de Controle Autônomo com Intel RealSense L515 e D435
 - L515 (LiDAR): Posicionado embaixo do robô para detectar obstáculos no chão
 - D435 (Câmera): Posicionada em cima para verificar altura dos objetos
 - Reconstrução 3D do ambiente em tempo real
+- Detecção de objetos com MediaPipe
 """
 
 import pyrealsense2 as rs
@@ -19,6 +20,7 @@ from threading import Thread
 from queue import Queue
 from collections import deque
 from scipy.spatial import distance
+from mediapipe_detector import MediaPipeDetector
 
 class RealSenseController:
     """Gerencia os sensores Intel RealSense"""
@@ -983,6 +985,14 @@ class WebSocketServer:
         self.autonomous_mode = False
         self.running = True
         
+        # Inicializa detector MediaPipe
+        try:
+            self.mediapipe_detector = MediaPipeDetector()
+            print("✓ MediaPipe detector integrado ao sistema")
+        except Exception as e:
+            print(f"⚠ MediaPipe não disponível: {e}")
+            self.mediapipe_detector = None
+        
     async def register(self, websocket):
         """Registra novo cliente"""
         self.clients.add(websocket)
@@ -1165,6 +1175,23 @@ class WebSocketServer:
                     
                     if tracked_objects:
                         message['tracked_objects'] = tracked_objects
+                    
+                    # Detecção de objetos com MediaPipe (L515)
+                    if self.mediapipe_detector is not None and lidar_data is not None:
+                        try:
+                            # Obtém escala de profundidade
+                            depth_scale = self.sensors.pipeline_lidar.get_active_profile().get_device().first_depth_sensor().get_depth_scale()
+                            # Detecta objetos com MediaPipe
+                            detected_objects = self.mediapipe_detector.detect_objects(
+                                color_image, 
+                                lidar_data, 
+                                depth_scale
+                            )
+                            if detected_objects:
+                                message['detected_objects'] = detected_objects
+                        except Exception as e:
+                            # Silenciosamente ignora erros do MediaPipe para não atrapalhar o fluxo
+                            pass
                     
                     # Envia frame da câmera (comprimido)
                     _, buffer = cv2.imencode('.jpg', color_image, [cv2.IMWRITE_JPEG_QUALITY, 50])

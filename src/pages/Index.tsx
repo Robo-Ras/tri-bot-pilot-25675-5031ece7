@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import DirectionalControl from "@/components/DirectionalControl";
 import MotorSpeedControl from "@/components/MotorSpeedControl";
 import { SensorVisualization } from "@/components/SensorVisualization";
+import { ObjectDetectionVisualization } from "@/components/ObjectDetectionVisualization";
 import { AutonomousControl } from "@/components/AutonomousControl";
 import { SerialConnectionControl } from "@/components/SerialConnectionControl";
 import { ArduinoTroubleshooting } from "@/components/ArduinoTroubleshooting";
@@ -18,6 +19,7 @@ const Index = () => {
   const [groundObstacles, setGroundObstacles] = useState<any>();
   const [heightObstacles, setHeightObstacles] = useState<any>();
   const [trackedObjects, setTrackedObjects] = useState<any>();
+  const [detectedObjects, setDetectedObjects] = useState<any[]>([]);
   const [navigationStatus, setNavigationStatus] = useState<any>();
   const [availablePorts, setAvailablePorts] = useState<string[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
@@ -45,6 +47,9 @@ const Index = () => {
         if (data.type === 'sensor_data') {
           if (data.camera) {
             setCameraImage(data.camera);
+          }
+          if (data.detected_objects) {
+            setDetectedObjects(data.detected_objects);
           }
           if (data.ground_obstacles) {
             setGroundObstacles(data.ground_obstacles);
@@ -225,6 +230,14 @@ const Index = () => {
           onSpeedChange={handleAutonomousSpeedChange}
           navigationStatus={navigationStatus}
           heightObstacles={heightObstacles}
+        />
+      </div>
+
+      {/* Detecção de Objetos L515 */}
+      <div className="mb-6">
+        <ObjectDetectionVisualization
+          cameraImage={cameraImage}
+          detectedObjects={detectedObjects}
         />
       </div>
 
