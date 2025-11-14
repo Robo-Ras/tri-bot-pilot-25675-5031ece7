@@ -57,40 +57,59 @@ class RealSenseController:
         
     def list_devices(self):
         """Lista todos os dispositivos RealSense conectados"""
-        ctx = rs.context()
-        devices = ctx.query_devices()
-        print("\n=== Dispositivos RealSense Detectados ===")
-        
-        if len(devices) == 0:
-            print("✗ Nenhum dispositivo RealSense encontrado!")
-            print("  Verifique se os sensores estão conectados via USB")
-            print("  Execute: lsusb | grep Intel")
+        try:
+            ctx = rs.context()
+            devices = ctx.query_devices()
+            print("\n=== Dispositivos RealSense Detectados ===")
+            
+            if len(devices) == 0:
+                print("✗ Nenhum dispositivo RealSense encontrado!")
+                print("  Verifique se os sensores estão conectados via USB")
+                print("  Execute: lsusb | grep Intel")
+                return []
+            
+            device_list = []
+            for i in range(len(devices)):
+                try:
+                    dev = devices[i]
+                    if not dev:
+                        print(f"  Dispositivo {i+1}: inválido (pulando)")
+                        continue
+                        
+                    name = dev.get_info(rs.camera_info.name)
+                    serial = dev.get_info(rs.camera_info.serial_number)
+                    firmware = dev.get_info(rs.camera_info.firmware_version)
+                    product_line = dev.get_info(rs.camera_info.product_line)
+                    
+                    print(f"{i+1}. {name}")
+                    print(f"   Serial: {serial}")
+                    print(f"   Firmware: {firmware}")
+                    print(f"   Linha de Produto: {product_line}")
+                    
+                    # DEBUG: Mostra valores para comparação
+                    print(f"   [DEBUG] Nome UPPER: '{name.upper()}'")
+                    print(f"   [DEBUG] Product UPPER: '{product_line.upper()}'")
+                    print(f"   [DEBUG] Tamanho nome: {len(name)}")
+                    
+                    device_list.append({
+                        'name': name, 
+                        'serial': serial, 
+                        'product_line': product_line
+                    })
+                except RuntimeError as e:
+                    print(f"  Erro ao acessar dispositivo {i+1}: {str(e)}")
+                    print("  Tente reconectar o sensor USB ou reiniciar o sistema")
+                    continue
+            
+            return device_list
+            
+        except Exception as e:
+            print(f"\n✗ Erro ao listar dispositivos RealSense: {str(e)}")
+            print("  Soluções possíveis:")
+            print("  1. Reconecte os sensores USB")
+            print("  2. Execute: sudo systemctl restart udev")
+            print("  3. Verifique permissões: sudo usermod -aG dialout $USER")
             return []
-        
-        device_list = []
-        for i, dev in enumerate(devices):
-            name = dev.get_info(rs.camera_info.name)
-            serial = dev.get_info(rs.camera_info.serial_number)
-            firmware = dev.get_info(rs.camera_info.firmware_version)
-            product_line = dev.get_info(rs.camera_info.product_line)
-            
-            print(f"{i+1}. {name}")
-            print(f"   Serial: {serial}")
-            print(f"   Firmware: {firmware}")
-            print(f"   Linha de Produto: {product_line}")
-            
-            # DEBUG: Mostra valores para comparação
-            print(f"   [DEBUG] Nome UPPER: '{name.upper()}'")
-            print(f"   [DEBUG] Product UPPER: '{product_line.upper()}'")
-            print(f"   [DEBUG] Tamanho nome: {len(name)}")
-            
-            device_list.append({
-                'name': name, 
-                'serial': serial, 
-                'product_line': product_line
-            })
-        
-        return device_list
     
     def identify_devices(self):
         """Identifica e atribui dispositivos baseado no modelo"""
