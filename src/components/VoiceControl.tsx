@@ -30,30 +30,33 @@ const VoiceControl = ({ onCommand, isConnected }: VoiceControlProps) => {
     }
 
     const recognitionInstance = new SpeechRecognition();
-    recognitionInstance.continuous = true;
-    recognitionInstance.interimResults = true;
-    recognitionInstance.lang = 'pt-BR'; // Português do Brasil
+    recognitionInstance.continuous = false;
+    recognitionInstance.interimResults = false;
+    recognitionInstance.lang = 'pt-BR';
+    recognitionInstance.maxAlternatives = 1;
 
     recognitionInstance.onresult = (event: any) => {
-      const current = event.resultIndex;
-      const transcriptText = event.results[current][0].transcript.toLowerCase().trim();
-      
+      const transcriptText = event.results[0][0].transcript.toLowerCase().trim();
       setTranscript(transcriptText);
-
-      // Only process final results
-      if (event.results[current].isFinal) {
-        processVoiceCommand(transcriptText);
-      }
+      processVoiceCommand(transcriptText);
     };
 
     recognitionInstance.onerror = (event: any) => {
       console.error('Speech recognition error:', event.error);
-      setIsListening(false);
+      if (event.error !== 'no-speech' && event.error !== 'aborted') {
+        setIsListening(false);
+      }
     };
 
     recognitionInstance.onend = () => {
       if (isListening) {
-        recognitionInstance.start();
+        setTimeout(() => {
+          try {
+            recognitionInstance.start();
+          } catch (e) {
+            console.error('Failed to restart recognition:', e);
+          }
+        }, 100);
       }
     };
 
@@ -61,27 +64,41 @@ const VoiceControl = ({ onCommand, isConnected }: VoiceControlProps) => {
 
     return () => {
       if (recognitionInstance) {
-        recognitionInstance.stop();
+        try {
+          recognitionInstance.stop();
+        } catch (e) {
+          console.error('Error stopping recognition:', e);
+        }
       }
     };
-  }, []);
+  }, [isListening]);
 
   const processVoiceCommand = (text: string) => {
-    const normalized = text.toLowerCase();
+    const normalized = text.toLowerCase().trim();
     
-    // Command mapping
+    // Command mapping - ordem importa, mais específicos primeiro
     const commands: { [key: string]: string } = {
-      'frente': 'forward',
       'para frente': 'forward',
-      'trás': 'backward',
+      'frente': 'forward',
+      'vá para frente': 'forward',
       'para trás': 'backward',
+      'trás': 'backward',
+      'tras': 'backward',
       'ré': 'backward',
+      're': 'backward',
+      'voltar': 'backward',
       'esquerda': 'left',
+      'vire à esquerda': 'left',
+      'virar esquerda': 'left',
       'direita': 'right',
+      'vire à direita': 'right',
+      'virar direita': 'right',
       'parar': 'stop',
       'pare': 'stop',
+      'parado': 'stop',
       'modo autônomo': 'autonomous',
       'autônomo': 'autonomous',
+      'autonomo': 'autonomous',
       'modo manual': 'manual',
       'manual': 'manual'
     };
@@ -89,15 +106,24 @@ const VoiceControl = ({ onCommand, isConnected }: VoiceControlProps) => {
     // Check if any command matches
     for (const [phrase, command] of Object.entries(commands)) {
       if (normalized.includes(phrase)) {
+        console.log('✓ Comando reconhecido:', phrase, '→', command);
         onCommand(command);
         toast({
-          title: "Comando reconhecido",
-          description: `${phrase} → ${command}`,
+          title: "✓ Comando reconhecido",
+          description: `"${phrase}" → ${command}`,
         });
         setTranscript('');
         return;
       }
     }
+    
+    console.log('✗ Comando não reconhecido:', normalized);
+    toast({
+      title: "Comando não reconhecido",
+      description: `"${normalized}"`,
+      variant: "destructive"
+    });
+    setTranscript('');
   };
 
   const toggleListening = () => {
@@ -160,14 +186,15 @@ const VoiceControl = ({ onCommand, isConnected }: VoiceControlProps) => {
         <div className="text-xs text-muted-foreground space-y-1">
           <p className="font-semibold">Comandos disponíveis:</p>
           <ul className="list-disc list-inside space-y-0.5">
-            <li>"frente" ou "para frente"</li>
-            <li>"trás", "para trás" ou "ré"</li>
-            <li>"esquerda"</li>
-            <li>"direita"</li>
-            <li>"parar" ou "pare"</li>
-            <li>"modo autônomo" ou "autônomo"</li>
-            <li>"modo manual" ou "manual"</li>
+            <li><strong>Frente:</strong> "frente", "para frente"</li>
+            <li><strong>Trás:</strong> "trás", "para trás", "ré", "voltar"</li>
+            <li><strong>Esquerda:</strong> "esquerda", "virar esquerda"</li>
+            <li><strong>Direita:</strong> "direita", "virar direita"</li>
+            <li><strong>Parar:</strong> "parar", "pare"</li>
+            <li><strong>Autônomo:</strong> "modo autônomo", "autônomo"</li>
+            <li><strong>Manual:</strong> "modo manual", "manual"</li>
           </ul>
+          <p className="text-xs mt-2 italic">💡 Fale de forma clara e pausada</p>
         </div>
       </div>
     </Card>
