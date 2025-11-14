@@ -13,6 +13,9 @@ websockets
 opencv-python
 numpy<2.0.0
 
+# Detecção de Objetos
+mediapipe
+
 # Cálculos científicos
 scipy
 
