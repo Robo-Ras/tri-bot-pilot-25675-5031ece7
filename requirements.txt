@@ -1,7 +1,7 @@
 # Dependências Python para Sistema de Navegação Autônoma
 
 # Intel RealSense SDK
-pyrealsense2==2.54.1
+pyrealsense2==2.54.1.5217
 
 # Comunicação Serial
 pyserial
