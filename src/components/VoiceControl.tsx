@@ -37,7 +37,7 @@ const VoiceControl = ({ onSendCommand, onToggleAutonomous, isConnected }: VoiceC
 
     recognition.continuous = true;
     recognition.interimResults = true;
-    recognition.lang = 'pt-BR';
+    recognition.lang = 'en-US'; // Mudado para inglês (melhor reconhecimento)
     recognition.maxAlternatives = 1;
 
     console.log('✅ Web Speech API configurada:', {
@@ -116,43 +116,42 @@ const VoiceControl = ({ onSendCommand, onToggleAutonomous, isConnected }: VoiceC
     
     const SPEED = 60;
 
-    // Comandos de movimento
-    if (command.includes('frente') || command.includes('para frente')) {
+    // Comandos de movimento - INGLÊS e PORTUGUÊS
+    if (command.includes('forward') || command.includes('frente') || command.includes('para frente')) {
       onSendCommand(-SPEED, 0, SPEED);
-      setLastCommand('Frente');
-      toast({ title: "Comando de Voz", description: "Movendo para frente" });
+      setLastCommand('Forward / Frente');
+      toast({ title: "Voice Command", description: "Moving forward" });
     } 
-    else if (command.includes('trás') || command.includes('para trás') || command.includes('tras')) {
+    else if (command.includes('backward') || command.includes('back') || command.includes('trás') || command.includes('para trás') || command.includes('tras')) {
       onSendCommand(SPEED, 0, -SPEED);
-      setLastCommand('Trás');
-      toast({ title: "Comando de Voz", description: "Movendo para trás" });
+      setLastCommand('Backward / Trás');
+      toast({ title: "Voice Command", description: "Moving backward" });
     } 
-    else if (command.includes('direita') || command.includes('para direita')) {
+    else if (command.includes('right') || command.includes('direita') || command.includes('para direita')) {
       onSendCommand(0, SPEED, -SPEED);
-      setLastCommand('Direita');
-      toast({ title: "Comando de Voz", description: "Movendo para direita" });
+      setLastCommand('Right / Direita');
+      toast({ title: "Voice Command", description: "Moving right" });
     } 
-    else if (command.includes('esquerda') || command.includes('para esquerda')) {
+    else if (command.includes('left') || command.includes('esquerda') || command.includes('para esquerda')) {
       onSendCommand(0, -SPEED, SPEED);
-      setLastCommand('Esquerda');
-      toast({ title: "Comando de Voz", description: "Movendo para esquerda" });
+      setLastCommand('Left / Esquerda');
+      toast({ title: "Voice Command", description: "Moving left" });
     } 
-    else if (command.includes('parar') || command.includes('pare')) {
+    else if (command.includes('stop') || command.includes('parar') || command.includes('pare')) {
       onSendCommand(0, 0, 0);
-      setLastCommand('Parar');
-      toast({ title: "Comando de Voz", description: "Robô parado" });
+      setLastCommand('Stop / Parar');
+      toast({ title: "Voice Command", description: "Robot stopped" });
     }
-    // Comando de modo autônomo
-    else if (command.includes('autônomo') || command.includes('autonomo') || 
-             command.includes('modo autônomo') || command.includes('modo autonomo')) {
+    // Comando de modo autônomo - INGLÊS e PORTUGUÊS
+    else if (command.includes('autonomous') || command.includes('auto mode') || command.includes('autônomo') || command.includes('autonomo') || command.includes('modo autônomo')) {
       onToggleAutonomous(true);
-      setLastCommand('Modo Autônomo Ativado');
-      toast({ title: "Comando de Voz", description: "Modo autônomo ativado" });
+      setLastCommand('Autonomous Mode / Modo Autônomo');
+      toast({ title: "Voice Command", description: "Autonomous mode activated" });
     }
-    else if (command.includes('manual') || command.includes('modo manual')) {
+    else if (command.includes('manual') || command.includes('manual mode') || command.includes('modo manual')) {
       onToggleAutonomous(false);
-      setLastCommand('Modo Manual Ativado');
-      toast({ title: "Comando de Voz", description: "Modo manual ativado" });
+      setLastCommand('Manual Mode / Modo Manual');
+      toast({ title: "Voice Command", description: "Manual mode activated" });
     }
   };
 
@@ -209,9 +208,12 @@ const VoiceControl = ({ onSendCommand, onToggleAutonomous, isConnected }: VoiceC
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-lg font-semibold">Controle por Voz</h3>
+            <h3 className="text-lg font-semibold">Voice Control / Controle por Voz</h3>
             <p className="text-sm text-muted-foreground">
-              Comandos: frente, trás, direita, esquerda, parar, modo autônomo
+              EN: forward, backward, left, right, stop, autonomous
+            </p>
+            <p className="text-sm text-muted-foreground">
+              PT: frente, trás, esquerda, direita, parar, autônomo
             </p>
           </div>
           <Button
