@@ -249,6 +249,36 @@ const VoiceControl = ({ onSendCommand, onToggleAutonomous, isConnected }: VoiceC
             )}
           </div>
         )}
+        
+        {/* Área de feedback - mostra sempre quando conectado */}
+        {isConnected && (
+          <div className="mt-4 p-4 bg-accent/20 rounded-lg border border-accent/30">
+            <div className="flex items-center gap-2 mb-2">
+              <div className={`w-3 h-3 rounded-full ${isListening ? 'bg-green-500 animate-pulse' : 'bg-muted'}`} />
+              <p className="text-sm font-medium">
+                {isListening ? 'Sistema ativo - fale agora' : 'Sistema inativo'}
+              </p>
+            </div>
+            
+            <div className="space-y-2">
+              <div>
+                <p className="text-xs text-muted-foreground">Reconhecido agora:</p>
+                <p className="text-sm font-mono bg-background/50 p-2 rounded min-h-[2rem]">
+                  {transcript || '---'}
+                </p>
+              </div>
+              
+              {lastCommand && (
+                <div>
+                  <p className="text-xs text-muted-foreground">Comando executado:</p>
+                  <p className="text-sm font-semibold text-primary bg-background/50 p-2 rounded">
+                    {lastCommand}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {!isConnected && (
           <div className="p-3 bg-destructive/10 rounded-md">
