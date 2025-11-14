@@ -2,11 +2,9 @@ import { useState, useEffect, useRef } from "react";
 import DirectionalControl from "@/components/DirectionalControl";
 import MotorSpeedControl from "@/components/MotorSpeedControl";
 import { SensorVisualization } from "@/components/SensorVisualization";
-import { ObjectDetectionVisualization } from "@/components/ObjectDetectionVisualization";
 import { AutonomousControl } from "@/components/AutonomousControl";
 import { SerialConnectionControl } from "@/components/SerialConnectionControl";
 import { ArduinoTroubleshooting } from "@/components/ArduinoTroubleshooting";
-import VoiceControl from "@/components/VoiceControl";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 
@@ -17,11 +15,9 @@ const Index = () => {
   const [autonomousMode, setAutonomousMode] = useState(false);
   const [autonomousSpeed, setAutonomousSpeed] = useState(100);
   const [cameraImage, setCameraImage] = useState<string>();
-  const [l515CameraImage, setL515CameraImage] = useState<string>();
   const [groundObstacles, setGroundObstacles] = useState<any>();
   const [heightObstacles, setHeightObstacles] = useState<any>();
   const [trackedObjects, setTrackedObjects] = useState<any>();
-  const [detectedObjects, setDetectedObjects] = useState<any[]>([]);
   const [navigationStatus, setNavigationStatus] = useState<any>();
   const [availablePorts, setAvailablePorts] = useState<string[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
@@ -44,26 +40,11 @@ const Index = () => {
       
       ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
-        console.log('📩 Mensagem recebida:', data.type);
+        console.log('📩 Mensagem recebida do servidor:', data.type);
         
         if (data.type === 'sensor_data') {
-          console.log('📸 Dados de sensores recebidos:', {
-            camera: !!data.camera,
-            l515_camera: !!data.l515_camera,
-            detected_objects: data.detected_objects?.length || 0,
-            ground_obstacles: !!data.ground_obstacles,
-            height_obstacles: !!data.height_obstacles,
-            tracked_objects: data.tracked_objects?.length || 0
-          });
-          
           if (data.camera) {
             setCameraImage(data.camera);
-          }
-          if (data.l515_camera) {
-            setL515CameraImage(data.l515_camera);
-          }
-          if (data.detected_objects) {
-            setDetectedObjects(data.detected_objects);
           }
           if (data.ground_obstacles) {
             setGroundObstacles(data.ground_obstacles);
@@ -77,16 +58,11 @@ const Index = () => {
           if (data.navigation_status) {
             setNavigationStatus(data.navigation_status);
           }
-        } else if (data.type === 'autonomous_status') {
-          console.log('🤖 Status autônomo:', data.enabled ? 'ATIVO' : 'INATIVO');
-          if (data.navigation_status) {
-            setNavigationStatus(data.navigation_status);
-          }
         } else if (data.type === 'ports_list') {
-          console.log('✅ Portas disponíveis:', data.ports);
+          console.log('✅ Lista de portas recebida:', data.ports);
           setAvailablePorts(data.ports || []);
         } else if (data.type === 'serial_status') {
-          console.log('✅ Arduino:', data.connected ? `CONECTADO (${data.port})` : 'DESCONECTADO');
+          console.log('✅ Status serial atualizado:', data.connected, data.port);
           setIsArduinoConnected(data.connected);
           if (data.connected) {
             toast({
@@ -94,8 +70,6 @@ const Index = () => {
               description: `Conectado na porta ${data.port}`,
             });
           }
-        } else {
-          console.log('⚠️ Tipo de mensagem desconhecido:', data.type);
         }
       };
       
@@ -187,34 +161,6 @@ const Index = () => {
     });
   };
 
-  const handleVoiceCommand = (command: string) => {
-    const speed = 60;
-    
-    switch (command) {
-      case 'forward':
-        handleSendCommand(-speed, 0, speed);
-        break;
-      case 'backward':
-        handleSendCommand(speed, 0, -speed);
-        break;
-      case 'left':
-        handleSendCommand(0, -speed, speed);
-        break;
-      case 'right':
-        handleSendCommand(0, speed, -speed);
-        break;
-      case 'stop':
-        handleSendCommand(0, 0, 0);
-        break;
-      case 'autonomous':
-        handleToggleAutonomous(true);
-        break;
-      case 'manual':
-        handleToggleAutonomous(false);
-        break;
-    }
-  };
-
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="flex items-center justify-between mb-2">
@@ -279,22 +225,6 @@ const Index = () => {
           onSpeedChange={handleAutonomousSpeedChange}
           navigationStatus={navigationStatus}
           heightObstacles={heightObstacles}
-        />
-      </div>
-
-      {/* Voice Control */}
-      <div className="mb-6">
-        <VoiceControl 
-          onCommand={handleVoiceCommand}
-          isConnected={isConnected}
-        />
-      </div>
-
-      {/* Detecção de Objetos L515 com MediaPipe */}
-      <div className="mb-6">
-        <ObjectDetectionVisualization
-          cameraImage={l515CameraImage || cameraImage}
-          detectedObjects={detectedObjects}
         />
       </div>
 

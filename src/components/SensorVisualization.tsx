@@ -70,22 +70,9 @@ export const SensorVisualization = ({ cameraImage, groundObstacles, heightObstac
       <Card className="p-4">
         <div className="flex items-center justify-between mb-2">
           <h3 className="text-lg font-semibold">📹 Câmera D435 (Superior)</h3>
-          <div className="flex items-center gap-2">
-            {cameraImage ? (
-              <Badge variant="default" className="gap-1">
-                <CheckCircle className="w-3 h-3" />
-                Ativa
-              </Badge>
-            ) : (
-              <Badge variant="destructive" className="gap-1">
-                <AlertCircle className="w-3 h-3" />
-                Sem sinal
-              </Badge>
-            )}
-            {trackedObjects && trackedObjects.length > 0 && (
-              <Badge variant="secondary">{trackedObjects.length} objeto(s)</Badge>
-            )}
-          </div>
+          {trackedObjects && trackedObjects.length > 0 && (
+            <Badge variant="default">{trackedObjects.length} objeto(s)</Badge>
+          )}
         </div>
         <p className="text-xs text-muted-foreground mb-3">Tracking de objetos em tempo real</p>
         <div className="aspect-video bg-secondary rounded-lg overflow-hidden relative">
@@ -93,7 +80,7 @@ export const SensorVisualization = ({ cameraImage, groundObstacles, heightObstac
             <>
               <img 
                 src={`data:image/jpeg;base64,${cameraImage}`} 
-                alt="Camera D435 feed"
+                alt="Camera feed"
                 className="w-full h-full object-cover"
               />
               {/* Overlay com objetos rastreados */}
@@ -145,20 +132,8 @@ export const SensorVisualization = ({ cameraImage, groundObstacles, heightObstac
               </svg>
             </>
           ) : (
-            <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-3 p-6">
-              <AlertCircle className="w-16 h-16 opacity-50" />
-              <div className="text-center space-y-2">
-                <p className="font-semibold text-lg">Câmera D435 Offline</p>
-                <div className="text-xs space-y-1 max-w-md">
-                  <p>A câmera não está enviando dados. Verifique:</p>
-                  <ul className="list-disc list-inside text-left space-y-1 mt-2">
-                    <li>Câmera D435 está conectada via USB</li>
-                    <li>Script <code className="bg-muted px-1 py-0.5 rounded">robot_autonomous_control.py</code> está rodando</li>
-                    <li>Verifique erros no terminal Python</li>
-                    <li>Teste com: <code className="bg-muted px-1 py-0.5 rounded">realsense-viewer</code></li>
-                  </ul>
-                </div>
-              </div>
+            <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
+              Aguardando dados da câmera...
             </div>
           )}
         </div>

@@ -1,7 +1,7 @@
 # Dependências Python para Sistema de Navegação Autônoma
 
 # Intel RealSense SDK
-pyrealsense2==2.54.1.5217
+pyrealsense2
 
 # Comunicação Serial
 pyserial
@@ -12,9 +12,6 @@ websockets
 # Processamento de Imagem
 opencv-python
 numpy<2.0.0
-
-# Detecção de Objetos
-mediapipe
 
 # Cálculos científicos
 scipy
