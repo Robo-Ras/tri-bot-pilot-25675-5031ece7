@@ -142,9 +142,9 @@ class RealSenseController:
             print(f"      LiDAR - 'LIDAR' e 'L5': {test4}")
             
             # Testes para Câmera
-            test5 = 'D435' in name_upper
-            test6 = 'D4' in name_upper and len(name) < 20
-            test7 = 'D400' in product_upper
+            test5 = 'D435' in name_upper or 'D435I' in name_upper
+            test6 = 'D4' in name_upper and len(name) < 30
+            test7 = 'D400' in product_upper or 'D4' in product_upper
             
             print(f"      Câmera - 'D435' in nome: {test5}")
             print(f"      Câmera - 'D4' in nome (curto): {test6}")
