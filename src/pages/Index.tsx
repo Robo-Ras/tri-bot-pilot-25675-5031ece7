@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import DirectionalControl from "@/components/DirectionalControl";
 import MotorSpeedControl from "@/components/MotorSpeedControl";
+import VoiceControl from "@/components/VoiceControl";
 import { SensorVisualization } from "@/components/SensorVisualization";
 import { AutonomousControl } from "@/components/AutonomousControl";
 import { SerialConnectionControl } from "@/components/SerialConnectionControl";
@@ -225,6 +226,15 @@ const Index = () => {
           onSpeedChange={handleAutonomousSpeedChange}
           navigationStatus={navigationStatus}
           heightObstacles={heightObstacles}
+        />
+      </div>
+
+      {/* Voice Control */}
+      <div className="mb-6">
+        <VoiceControl
+          onSendCommand={handleSendCommand}
+          onToggleAutonomous={handleToggleAutonomous}
+          isConnected={isConnected}
         />
       </div>
 
