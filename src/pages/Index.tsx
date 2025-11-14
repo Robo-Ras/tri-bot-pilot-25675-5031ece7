@@ -44,9 +44,18 @@ const Index = () => {
       
       ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
-        console.log('📩 Mensagem recebida do servidor:', data.type);
+        console.log('📩 Mensagem recebida:', data.type);
         
         if (data.type === 'sensor_data') {
+          console.log('📸 Dados de sensores recebidos:', {
+            camera: !!data.camera,
+            l515_camera: !!data.l515_camera,
+            detected_objects: data.detected_objects?.length || 0,
+            ground_obstacles: !!data.ground_obstacles,
+            height_obstacles: !!data.height_obstacles,
+            tracked_objects: data.tracked_objects?.length || 0
+          });
+          
           if (data.camera) {
             setCameraImage(data.camera);
           }
@@ -68,11 +77,16 @@ const Index = () => {
           if (data.navigation_status) {
             setNavigationStatus(data.navigation_status);
           }
+        } else if (data.type === 'autonomous_status') {
+          console.log('🤖 Status autônomo:', data.enabled ? 'ATIVO' : 'INATIVO');
+          if (data.navigation_status) {
+            setNavigationStatus(data.navigation_status);
+          }
         } else if (data.type === 'ports_list') {
-          console.log('✅ Lista de portas recebida:', data.ports);
+          console.log('✅ Portas disponíveis:', data.ports);
           setAvailablePorts(data.ports || []);
         } else if (data.type === 'serial_status') {
-          console.log('✅ Status serial atualizado:', data.connected, data.port);
+          console.log('✅ Arduino:', data.connected ? `CONECTADO (${data.port})` : 'DESCONECTADO');
           setIsArduinoConnected(data.connected);
           if (data.connected) {
             toast({
@@ -80,6 +94,8 @@ const Index = () => {
               description: `Conectado na porta ${data.port}`,
             });
           }
+        } else {
+          console.log('⚠️ Tipo de mensagem desconhecido:', data.type);
         }
       };
       

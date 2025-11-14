@@ -80,7 +80,7 @@ export const SensorVisualization = ({ cameraImage, groundObstacles, heightObstac
             <>
               <img 
                 src={`data:image/jpeg;base64,${cameraImage}`} 
-                alt="Camera feed"
+                alt="Camera D435 feed"
                 className="w-full h-full object-cover"
               />
               {/* Overlay com objetos rastreados */}
@@ -132,8 +132,10 @@ export const SensorVisualization = ({ cameraImage, groundObstacles, heightObstac
               </svg>
             </>
           ) : (
-            <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
-              Aguardando dados da câmera...
+            <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-2">
+              <AlertCircle className="w-12 h-12 opacity-50" />
+              <p className="font-semibold">Câmera D435 não disponível</p>
+              <p className="text-xs">Verifique se robot_autonomous_control.py está com câmera D435 conectada</p>
             </div>
           )}
         </div>
