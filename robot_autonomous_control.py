@@ -795,6 +795,53 @@ class WebSocketServer:
         finally:
             await self.unregister(websocket)
     
+    def _convert_tracking_to_obstacles(self, tracked_objects):
+        """Converte objetos rastreados do YOLO em formato de obstáculos"""
+        if not tracked_objects:
+            return {
+                'type': 'yolo',
+                'left': False,
+                'center': False,
+                'right': False,
+                'distances': {'left': 10.0, 'center': 10.0, 'right': 10.0}
+            }
+        
+        # Divide frame em 3 setores
+        frame_width = 640
+        left_sector = frame_width // 3
+        right_sector = 2 * frame_width // 3
+        
+        obstacles = {
+            'type': 'yolo',
+            'left': False,
+            'center': False,
+            'right': False,
+            'distances': {'left': 10.0, 'center': 10.0, 'right': 10.0}
+        }
+        
+        for obj in tracked_objects:
+            # Calcula centro do objeto
+            bbox = obj.get('bbox', {})
+            center_x = bbox.get('x', 0) + bbox.get('w', 0) // 2
+            depth = obj.get('depth', 10.0)
+            
+            # Determina setor
+            if center_x < left_sector:
+                sector = 'left'
+            elif center_x < right_sector:
+                sector = 'center'
+            else:
+                sector = 'right'
+            
+            # Atualiza distância mínima do setor
+            if depth < obstacles['distances'][sector]:
+                obstacles['distances'][sector] = depth
+                # Marca como obstáculo se estiver perto (< 1.5m)
+                if depth < 1.5:
+                    obstacles[sector] = True
+        
+        return obstacles
+    
     async def process_command(self, data):
         """Processa comandos recebidos"""
         cmd_type = data.get('type')
@@ -887,6 +934,11 @@ class WebSocketServer:
                         
                         message['tracked_objects'] = tracked_objects
                         message['tracking_mode'] = 'yolo'
+                        
+                        # Converte tracked_objects em height_obstacles para navegação
+                        height_obstacles = self._convert_tracking_to_obstacles(tracked_objects)
+                        message['height_obstacles'] = height_obstacles
+                        
                     except KeyboardInterrupt:
                         raise  # Permite Ctrl+C
                     except Exception as e:
@@ -924,7 +976,7 @@ class WebSocketServer:
                 
                 # NAVEGAÇÃO AUTÔNOMA
                 if self.autonomous_mode and self.robot.is_connected():
-                    ground_obstacles = None
+                    ground_obstacles = message.get('ground_obstacles')
                     height_obstacles = message.get('height_obstacles')
                     
                     if ground_obstacles or height_obstacles:
