@@ -968,18 +968,19 @@ def main():
         print("  YOLO Tracking Disponível")
     print("="*70)
     
-    realsense = RealSenseController()
+    # NÃO usamos mais RealSenseController para iniciar câmeras,
+    # porque o código da Intel está dando o erro "bad optional access".
+    # Em vez disso, deixamos o próprio módulo YOLO (MultiCameraTracker)
+    # cuidar de encontrar e iniciar L515 e D435, exatamente como no
+    # script que você mandou.
+    realsense = RealSenseController()  # mantido apenas para futura integração de LiDAR
     detector = ObstacleDetector()
     navigator = AutonomousNavigator()
     robot = RobotController()
     server = WebSocketServer(robot, realsense, detector, navigator)
     
     try:
-        print("\n📡 Inicializando sensores RealSense...")
-        sensor_success = realsense.start()
-        
-        if not sensor_success:
-            print("\n⚠️  AVISO: Nenhum sensor RealSense disponível")
+        print("\n📡 Sensores RealSense serão iniciados pelo módulo YOLO quando você ativar o tracking na interface.")
         
         print(f"\n{'='*70}")
         print("✓ Sistema pronto para uso!")
@@ -987,7 +988,7 @@ def main():
         print(f"  - Use os controles para mover o robô manualmente")
         print(f"  - Ative o modo autônomo para navegação com desvio")
         if YOLO_AVAILABLE:
-            print(f"  - YOLO Tracking disponível na interface")
+            print(f"  - YOLO Tracking (L515 + D435) será iniciado ao ativar o switch de YOLO")
         print(f"{'='*70}\n")
         
         asyncio.run(server.start_server())
