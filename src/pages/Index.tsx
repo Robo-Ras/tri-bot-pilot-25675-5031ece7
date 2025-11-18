@@ -4,6 +4,7 @@ import MotorSpeedControl from "@/components/MotorSpeedControl";
 import VoiceControl from "@/components/VoiceControl";
 import { SensorVisualization } from "@/components/SensorVisualization";
 import { MultiCameraView } from "@/components/MultiCameraView";
+import { CameraStatus } from "@/components/CameraStatus";
 import { AutonomousControl } from "@/components/AutonomousControl";
 import { SerialConnectionControl } from "@/components/SerialConnectionControl";
 import { ArduinoTroubleshooting } from "@/components/ArduinoTroubleshooting";
@@ -19,6 +20,8 @@ const Index = () => {
   const [cameraImage, setCameraImage] = useState<string>();
   const [lidarImage, setLidarImage] = useState<string>();
   const [d435Image, setD435Image] = useState<string>();
+  const [lidarOnline, setLidarOnline] = useState(false);
+  const [d435Online, setD435Online] = useState(false);
   const [groundObstacles, setGroundObstacles] = useState<any>();
   const [heightObstacles, setHeightObstacles] = useState<any>();
   const [trackedObjects, setTrackedObjects] = useState<any>();
@@ -53,13 +56,20 @@ const Index = () => {
           if (data.camera_image) {
             setCameraImage(data.camera_image);
             setD435Image(data.camera_image); // D435 principal
+            setD435Online(true);
           }
           if (data.l515_image) {
             setLidarImage(data.l515_image);
+            setLidarOnline(true);
           }
           if (data.d435_image) {
             setD435Image(data.d435_image);
+            setD435Online(true);
           }
+          
+          // Atualiza status das câmeras baseado nas imagens recebidas
+          if (!data.l515_image) setLidarOnline(false);
+          if (!data.d435_image && !data.camera_image) setD435Online(false);
           
           // Dados de obstáculos
           if (data.ground_obstacles) {
@@ -290,6 +300,14 @@ const Index = () => {
 
       {/* Camera D435 + Multi-Camera View */}
       <div className="mb-6 space-y-6">
+        {/* Status das Câmeras */}
+        <CameraStatus
+          lidarOnline={lidarOnline}
+          d435Online={d435Online}
+          yoloEnabled={yoloEnabled}
+          trackingMode={trackingMode}
+        />
+
         {/* Visualização com Múltiplas Câmeras */}
         <MultiCameraView
           lidarImage={lidarImage}
