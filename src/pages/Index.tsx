@@ -3,6 +3,7 @@ import DirectionalControl from "@/components/DirectionalControl";
 import MotorSpeedControl from "@/components/MotorSpeedControl";
 import VoiceControl from "@/components/VoiceControl";
 import { SensorVisualization } from "@/components/SensorVisualization";
+import { MultiCameraView } from "@/components/MultiCameraView";
 import { AutonomousControl } from "@/components/AutonomousControl";
 import { SerialConnectionControl } from "@/components/SerialConnectionControl";
 import { ArduinoTroubleshooting } from "@/components/ArduinoTroubleshooting";
@@ -16,9 +17,13 @@ const Index = () => {
   const [autonomousMode, setAutonomousMode] = useState(false);
   const [autonomousSpeed, setAutonomousSpeed] = useState(100);
   const [cameraImage, setCameraImage] = useState<string>();
+  const [lidarImage, setLidarImage] = useState<string>();
+  const [d435Image, setD435Image] = useState<string>();
   const [groundObstacles, setGroundObstacles] = useState<any>();
   const [heightObstacles, setHeightObstacles] = useState<any>();
   const [trackedObjects, setTrackedObjects] = useState<any>();
+  const [trackingMode, setTrackingMode] = useState<string>("basic");
+  const [yoloEnabled, setYoloEnabled] = useState(false);
   const [navigationStatus, setNavigationStatus] = useState<any>();
   const [availablePorts, setAvailablePorts] = useState<string[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
@@ -44,18 +49,35 @@ const Index = () => {
         console.log('📩 Mensagem recebida do servidor:', data.type);
         
         if (data.type === 'sensor_data') {
-          if (data.camera) {
-            setCameraImage(data.camera);
+          // Imagens de múltiplas câmeras
+          if (data.camera_image) {
+            setCameraImage(data.camera_image);
+            setD435Image(data.camera_image); // D435 principal
           }
+          if (data.l515_image) {
+            setLidarImage(data.l515_image);
+          }
+          if (data.d435_image) {
+            setD435Image(data.d435_image);
+          }
+          
+          // Dados de obstáculos
           if (data.ground_obstacles) {
             setGroundObstacles(data.ground_obstacles);
           }
           if (data.height_obstacles) {
             setHeightObstacles(data.height_obstacles);
           }
+          
+          // Tracking
           if (data.tracked_objects) {
             setTrackedObjects(data.tracked_objects);
           }
+          if (data.tracking_mode) {
+            setTrackingMode(data.tracking_mode);
+          }
+          
+          // Navegação
           if (data.navigation_status) {
             setNavigationStatus(data.navigation_status);
           }
@@ -69,6 +91,25 @@ const Index = () => {
             toast({
               title: "Arduino Conectado",
               description: `Conectado na porta ${data.port}`,
+            });
+          }
+        } else if (data.type === 'yolo_status') {
+          setYoloEnabled(data.enabled);
+          if (data.error) {
+            toast({
+              title: "Erro YOLO",
+              description: data.error,
+              variant: "destructive",
+            });
+          } else if (data.enabled) {
+            toast({
+              title: "YOLO Ativado",
+              description: "Sistema de tracking avançado ativo",
+            });
+          } else {
+            toast({
+              title: "YOLO Desativado",
+              description: "Voltando ao tracking básico",
             });
           }
         }
@@ -146,6 +187,15 @@ const Index = () => {
     }
   };
 
+  const handleToggleYolo = (enabled: boolean) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({
+        type: 'toggle_yolo',
+        enabled
+      }));
+    }
+  };
+  
   const handleEmergencyStop = () => {
     handleSendCommand(0, 0, 0);
     setAutonomousMode(false);
@@ -238,10 +288,21 @@ const Index = () => {
         />
       </div>
 
-      {/* Camera D435 */}
-      <div className="mb-6">
+      {/* Camera D435 + Multi-Camera View */}
+      <div className="mb-6 space-y-6">
+        {/* Visualização com Múltiplas Câmeras */}
+        <MultiCameraView
+          lidarImage={lidarImage}
+          d435Image={d435Image}
+          trackedObjects={trackedObjects}
+          trackingMode={trackingMode}
+          yoloEnabled={yoloEnabled}
+          onToggleYolo={handleToggleYolo}
+        />
+
+        {/* Visualização de Sensores (versão simplificada) */}
         <SensorVisualization
-          cameraImage={cameraImage}
+          cameraImage={cameraImage || d435Image}
           groundObstacles={groundObstacles}
           heightObstacles={heightObstacles}
           trackedObjects={trackedObjects}

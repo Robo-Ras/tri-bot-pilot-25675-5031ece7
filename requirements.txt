@@ -19,5 +19,11 @@ scipy
 # Reconstrução 3D
 open3d
 
+# Detecção de Objetos com YOLO
+ultralytics
+
+# Tracking e Filtragem
+filterpy
+
 # Async/Concurrent
 asyncio
