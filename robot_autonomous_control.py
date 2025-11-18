@@ -65,10 +65,10 @@ class RealSenseController:
             pass
         
     def list_devices(self):
-        """Lista todos os dispositivos RealSense conectados"""
+        """Lista todos os dispositivos RealSense conectados (modo compatível)"""
         try:
             ctx = rs.context()
-            devices = ctx.query_devices()
+            devices = list(ctx.devices)  # MESMA ABORDAGEM DO SEU SCRIPT QUE FUNCIONA
             print("\n=== Dispositivos RealSense Detectados ===")
             
             if len(devices) == 0:
@@ -78,36 +78,31 @@ class RealSenseController:
                 return []
             
             device_list = []
-            for i in range(len(devices)):
+            for idx, dev in enumerate(devices, start=1):
                 try:
-                    dev = devices[i]
-                    if not dev:
-                        print(f"  Dispositivo {i+1}: inválido (pulando)")
-                        continue
-                        
                     name = dev.get_info(rs.camera_info.name)
                     serial = dev.get_info(rs.camera_info.serial_number)
                     firmware = dev.get_info(rs.camera_info.firmware_version)
                     product_line = dev.get_info(rs.camera_info.product_line)
                     
-                    print(f"{i+1}. {name}")
+                    print(f"{idx}. {name}")
                     print(f"   Serial: {serial}")
                     print(f"   Firmware: {firmware}")
                     print(f"   Linha de Produto: {product_line}")
                     
                     device_list.append({
-                        'name': name, 
-                        'serial': serial, 
-                        'product_line': product_line
+                        'name': name,
+                        'serial': serial,
+                        'product_line': product_line,
                     })
-                except RuntimeError as e:
-                    print(f"  Erro ao acessar dispositivo {i+1}: {str(e)}")
+                except Exception as e:
+                    print(f"  Erro ao acessar dispositivo {idx}: {e}")
                     continue
             
             return device_list
-            
         except Exception as e:
-            print(f"\n✗ Erro ao listar dispositivos RealSense: {str(e)}")
+            print("\n✗ Erro ao listar dispositivos RealSense (ctx.devices):", e)
+            print("  Tente desconectar e reconectar os sensores USB ou reiniciar o PC")
             return []
     
     def identify_devices(self):
