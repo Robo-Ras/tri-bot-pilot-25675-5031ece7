@@ -887,8 +887,12 @@ class WebSocketServer:
                         
                         message['tracked_objects'] = tracked_objects
                         message['tracking_mode'] = 'yolo'
+                    except KeyboardInterrupt:
+                        raise  # Permite Ctrl+C
                     except Exception as e:
-                        print(f"Erro no YOLO: {e}")
+                        print(f"❌ Erro no YOLO tracking: {e}")
+                        import traceback
+                        traceback.print_exc()
                         message['tracking_mode'] = 'error'
                 
                 # MODO BÁSICO
@@ -946,8 +950,14 @@ class WebSocketServer:
                 sleep_time = max(0.05, 0.1 - elapsed)
                 await asyncio.sleep(sleep_time)
                 
+            except KeyboardInterrupt:
+                print("\n⚠️  Interrupção detectada, parando loop...")
+                self.running = False
+                break
             except Exception as e:
-                print(f"Erro no loop de sensores: {e}")
+                print(f"❌ Erro no loop de sensores: {e}")
+                import traceback
+                traceback.print_exc()
                 await asyncio.sleep(0.5)
     
     async def start_server(self, host='127.0.0.1', port=8765):
