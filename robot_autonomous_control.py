@@ -638,31 +638,31 @@ class AutonomousNavigator:
             self.move_counter += 1
             
             obstacle_detected = (
-                distances['center'] < 0.8 or 
-                distances['left'] < 0.6 or 
-                distances['right'] < 0.6
+                distances['center'] < 1.2 or 
+                distances['left'] < 0.8 or 
+                distances['right'] < 0.8
             )
             
             if obstacle_detected:
                 self.free_path_counter = 0
                 
-                if distances['center'] < 0.8:
-                    if distances['right'] > distances['left'] and distances['right'] > 0.8:
-                        speed = int(self.base_speed * 0.7)
+                if distances['center'] < 1.2:
+                    if distances['right'] > distances['left'] and distances['right'] > 1.0:
+                        speed = int(self.base_speed * 0.6)
                         return 'right', speed, detection_info
-                    elif distances['left'] > 0.8:
-                        speed = int(self.base_speed * 0.7)
+                    elif distances['left'] > 1.0:
+                        speed = int(self.base_speed * 0.6)
                         return 'left', speed, detection_info
                     else:
-                        speed = int(self.base_speed * 0.6)
+                        speed = int(self.base_speed * 0.5)
                         return 'backward', speed, detection_info
                 
-                elif distances['left'] < 0.6:
-                    speed = int(self.base_speed * 0.6)
+                elif distances['left'] < 0.8:
+                    speed = int(self.base_speed * 0.5)
                     return 'right', speed, detection_info
                 
-                elif distances['right'] < 0.6:
-                    speed = int(self.base_speed * 0.6)
+                elif distances['right'] < 0.8:
+                    speed = int(self.base_speed * 0.5)
                     return 'left', speed, detection_info
             
             else:
@@ -718,12 +718,15 @@ class RobotController:
     
     def move(self, direction, speed):
         """Move o robô em uma direção"""
+        # Calcula velocidade menor (50%)
+        speed_low = int(speed * 0.5)
+        
         commands = {
-            'forward': (0, -speed, speed),
-            'backward': (0, speed, -speed),
-            'left': (speed, -speed, speed),
-            'right': (-speed, -speed, speed),
-            'rotate_right': (-speed, -speed, -speed),
+            'forward': (speed_low, 0, speed),       # M1: menor, M2: 0, M3: maior
+            'backward': (-speed, 0, -speed_low),    # M1: maior neg, M2: 0, M3: menor neg
+            'left': (0, -speed_low, speed),         # M1: 0, M2: menor neg, M3: maior
+            'right': (0, speed, -speed_low),        # M1: 0, M2: maior, M3: menor neg
+            'rotate_right': (speed, speed, speed),  # Rotação horária in-place
             'stop': (0, 0, 0)
         }
         

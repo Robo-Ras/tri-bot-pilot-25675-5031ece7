@@ -13,19 +13,23 @@ const DirectionalControl = ({ onSendCommand }: DirectionalControlProps) => {
   const [activeDirection, setActiveDirection] = useState<string | null>(null);
 
   const moveForward = () => {
-    onSendCommand(-speed, 0, speed);
+    // M1: menor, M2: 0, M3: maior
+    onSendCommand(Math.round(speed * 0.5), 0, speed);
     setActiveDirection('forward');
   };
   const moveBackward = () => {
-    onSendCommand(speed, 0, -speed);
+    // M1: maior, M2: 0, M3: menor
+    onSendCommand(-speed, 0, -Math.round(speed * 0.5));
     setActiveDirection('backward');
   };
   const moveRight = () => {
-    onSendCommand(0, speed, -speed);
+    // M1: 0, M2: maior, M3: menor negativo
+    onSendCommand(0, speed, -Math.round(speed * 0.5));
     setActiveDirection('right');
   };
   const moveLeft = () => {
-    onSendCommand(0, -speed, speed);
+    // M1: 0, M2: menor negativo, M3: maior
+    onSendCommand(0, -Math.round(speed * 0.5), speed);
     setActiveDirection('left');
   };
   const stop = () => {
