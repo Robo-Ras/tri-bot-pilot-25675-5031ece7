@@ -89,46 +89,58 @@ export const SensorVisualization = ({ cameraImage, groundObstacles, heightObstac
                 viewBox="0 0 640 480"
                 preserveAspectRatio="none"
               >
-                {trackedObjects?.map((obj) => (
-                  <g key={obj.id}>
-                    {/* Bounding box */}
-                    <rect
-                      x={obj.bbox.x}
-                      y={obj.bbox.y}
-                      width={obj.bbox.w}
-                      height={obj.bbox.h}
-                      fill="none"
-                      stroke="hsl(var(--primary))"
-                      strokeWidth="2"
-                      className="animate-pulse"
-                    />
-                    {/* Label */}
-                    <rect
-                      x={obj.bbox.x}
-                      y={obj.bbox.y - 24}
-                      width={obj.depth ? 90 : 50}
-                      height="20"
-                      fill="hsl(var(--primary))"
-                      opacity="0.9"
-                    />
-                    <text
-                      x={obj.bbox.x + 5}
-                      y={obj.bbox.y - 10}
-                      fill="hsl(var(--primary-foreground))"
-                      fontSize="12"
-                      fontWeight="bold"
-                    >
-                      ID:{obj.id} {obj.depth && `${obj.depth.toFixed(2)}m`}
-                    </text>
-                    {/* Centroide */}
-                    <circle
-                      cx={obj.centroid.x}
-                      cy={obj.centroid.y}
-                      r="3"
-                      fill="hsl(var(--accent))"
-                    />
-                  </g>
-                ))}
+                {trackedObjects?.map((obj) => {
+                  // Validação defensiva dos dados do objeto
+                  if (!obj || !obj.bbox || !obj.centroid) return null;
+                  
+                  const bboxX = obj.bbox.x || 0;
+                  const bboxY = obj.bbox.y || 0;
+                  const bboxW = obj.bbox.w || 0;
+                  const bboxH = obj.bbox.h || 0;
+                  const centroidX = obj.centroid.x || 0;
+                  const centroidY = obj.centroid.y || 0;
+                  
+                  return (
+                    <g key={obj.id}>
+                      {/* Bounding box */}
+                      <rect
+                        x={bboxX}
+                        y={bboxY}
+                        width={bboxW}
+                        height={bboxH}
+                        fill="none"
+                        stroke="hsl(var(--primary))"
+                        strokeWidth="2"
+                        className="animate-pulse"
+                      />
+                      {/* Label */}
+                      <rect
+                        x={bboxX}
+                        y={bboxY - 24}
+                        width={obj.depth ? 90 : 50}
+                        height="20"
+                        fill="hsl(var(--primary))"
+                        opacity="0.9"
+                      />
+                      <text
+                        x={bboxX + 5}
+                        y={bboxY - 10}
+                        fill="hsl(var(--primary-foreground))"
+                        fontSize="12"
+                        fontWeight="bold"
+                      >
+                        ID:{obj.id} {obj.depth && `${obj.depth.toFixed(2)}m`}
+                      </text>
+                      {/* Centroide */}
+                      <circle
+                        cx={centroidX}
+                        cy={centroidY}
+                        r="3"
+                        fill="hsl(var(--accent))"
+                      />
+                    </g>
+                  );
+                })}
               </svg>
             </>
           ) : (

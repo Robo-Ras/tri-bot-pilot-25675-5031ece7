@@ -128,9 +128,21 @@ class TrackedObject:
     
     def to_dict(self):
         """Converte para dicionário para envio via WebSocket"""
+        cx, cy = self.current_center()
+        x1, y1, x2, y2 = self.bbox
+        
         return {
             'id': self.id,
-            'bbox': [int(x) for x in self.bbox],
+            'bbox': {
+                'x': int(x1),
+                'y': int(y1),
+                'w': int(x2 - x1),
+                'h': int(y2 - y1)
+            },
+            'centroid': {
+                'x': int(cx),
+                'y': int(cy)
+            },
             'class': self.class_name,
             'confidence': float(self.conf),
             'camera': self.camera_name,
@@ -175,61 +187,86 @@ class MultiCameraTracker:
         return len(self.cameras) > 0
     
     def process_frame(self):
-        """Processa frames de todas as câmeras"""
+        """Processa frames de todas as câmeras COM TRATAMENTO ROBUSTO DE ERROS"""
         all_detections = []
         camera_frames = {}
         
-        # Coleta frames de todas as câmeras
-        for camera in self.cameras:
-            color, depth, depth_frame = camera.get_frames()
-            if color is None or depth is None:
-                continue
-                
-            camera_frames[camera.name] = {
-                'color': color,
-                'depth': depth,
-                'depth_frame': depth_frame,
-                'depth_scale': camera.depth_scale,
-                'annotated': color.copy()
-            }
-            
-            # Detecção YOLO apenas em intervalos
-            if self.frame_idx % DETECTION_INTERVAL == 0:
-                results = self.model(color, verbose=False)
-                for r in results:
-                    for box in r.boxes:
-                        x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
-                        cls = int(box.cls[0])
-                        conf = float(box.conf[0])
-                        class_name = self.model.names[cls]
+        try:
+            # Coleta frames de todas as câmeras
+            for camera in self.cameras:
+                try:
+                    color, depth, depth_frame = camera.get_frames()
+                    if color is None or depth is None:
+                        continue
                         
-                        all_detections.append({
-                            'bbox': (int(x1), int(y1), int(x2), int(y2)),
-                            'cls': cls,
-                            'class_name': class_name,
-                            'conf': conf,
-                            'camera': camera.name,
-                            'depth': depth,
-                            'depth_frame': depth_frame,
-                            'depth_scale': camera.depth_scale
-                        })
+                    camera_frames[camera.name] = {
+                        'color': color,
+                        'depth': depth,
+                        'depth_frame': depth_frame,
+                        'depth_scale': camera.depth_scale,
+                        'annotated': color.copy()
+                    }
+                    
+                    # Detecção YOLO apenas em intervalos
+                    if self.frame_idx % DETECTION_INTERVAL == 0:
+                        try:
+                            results = self.model(color, verbose=False)
+                            for r in results:
+                                for box in r.boxes:
+                                    try:
+                                        x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
+                                        cls = int(box.cls[0])
+                                        conf = float(box.conf[0])
+                                        class_name = self.model.names[cls]
+                                        
+                                        all_detections.append({
+                                            'bbox': (int(x1), int(y1), int(x2), int(y2)),
+                                            'cls': cls,
+                                            'class_name': class_name,
+                                            'conf': conf,
+                                            'camera': camera.name,
+                                            'depth': depth,
+                                            'depth_frame': depth_frame,
+                                            'depth_scale': camera.depth_scale
+                                        })
+                                    except Exception as e:
+                                        print(f"      Erro ao processar box: {e}")
+                                        continue
+                        except Exception as e:
+                            print(f"    Erro na detecção YOLO para {camera.name}: {e}")
+                            continue
+                except Exception as e:
+                    print(f"  Erro ao obter frames de {camera.name}: {e}")
+                    continue
+            
+            # Atualiza trackers
+            if self.frame_idx % DETECTION_INTERVAL == 0 and all_detections:
+                try:
+                    self._update_trackers(all_detections)
+                except Exception as e:
+                    print(f"  Erro ao atualizar trackers: {e}")
+            else:
+                for tr in self.trackers:
+                    tr.predict()
+                    tr.missed += 1
+            
+            # Remove trackers perdidos
+            self.trackers = [t for t in self.trackers if t.missed <= MAX_MISSED]
+            
+            # Desenha anotações
+            for camera_name, data in camera_frames.items():
+                try:
+                    self._draw_annotations(camera_name, data)
+                except Exception as e:
+                    print(f"  Erro ao desenhar anotações em {camera_name}: {e}")
+            
+            self.frame_idx += 1
+            
+        except Exception as e:
+            print(f"ERRO CRÍTICO no process_frame: {e}")
+            import traceback
+            traceback.print_exc()
         
-        # Atualiza trackers
-        if self.frame_idx % DETECTION_INTERVAL == 0 and all_detections:
-            self._update_trackers(all_detections)
-        else:
-            for tr in self.trackers:
-                tr.predict()
-                tr.missed += 1
-        
-        # Remove trackers perdidos
-        self.trackers = [t for t in self.trackers if t.missed <= MAX_MISSED]
-        
-        # Desenha anotações
-        for camera_name, data in camera_frames.items():
-            self._draw_annotations(camera_name, data)
-        
-        self.frame_idx += 1
         return camera_frames
     
     def _update_trackers(self, detections):
@@ -332,10 +369,19 @@ class MultiCameraTracker:
         return [tr.to_dict() for tr in self.trackers if tr.missed < 5]
     
     def cleanup(self):
-        """Limpa recursos"""
+        """Limpa recursos COM TRATAMENTO DE ERRO"""
+        print("  Parando câmeras...")
         for camera in self.cameras:
-            camera.stop()
+            try:
+                if camera.pipeline:
+                    print(f"    Parando {camera.name}...")
+                    camera.stop()
+                    print(f"    ✓ {camera.name} parado")
+            except Exception as e:
+                print(f"    ⚠ Erro ao parar {camera.name}: {e}")
+                # Continua mesmo com erro
         self.cameras = []
+        print("  ✓ Limpeza concluída")
 
 def iou(a, b):
     """Calcula Intersection over Union"""
