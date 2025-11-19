@@ -573,27 +573,82 @@ class ObstacleDetector:
 
 
 class AutonomousNavigator:
-    """Sistema de navegação autônoma baseado em tracking de objetos"""
+    """Sistema de navegação autônoma baseado em análise posicional de objetos"""
     
     def __init__(self):
-        self.current_state = 'forward'  # 'forward' ou 'rotating'
+        self.current_state = 'forward'
         self.base_speed = 100
         self.rotation_counter = 0
-        self.rotation_steps_45deg = 2  # Ajuste conforme necessário para 45 graus
+        self.rotation_steps_45deg = 2
+        self.rotation_direction = None  # 'left' ou 'right'
+        self.image_width = 640  # Resolução da D435
+        
+    def analyze_object_position(self, tracked_objects):
+        """
+        Analisa posição dos objetos e determina melhor direção de desvio
+        Retorna: 'left', 'right', ou None (sem obstáculos)
+        """
+        if not tracked_objects or len(tracked_objects) == 0:
+            return None
+        
+        # Define setores da imagem (esquerda, centro, direita)
+        left_boundary = self.image_width / 3
+        right_boundary = (self.image_width * 2) / 3
+        
+        # Analisa cada objeto
+        objects_left = []
+        objects_center = []
+        objects_right = []
+        
+        for obj_id, obj_data in tracked_objects.items():
+            cx, cy = obj_data['centroid']
+            depth = obj_data['depth']
+            
+            # Classifica objeto por posição horizontal
+            if cx < left_boundary:
+                objects_left.append({'x': cx, 'depth': depth})
+            elif cx > right_boundary:
+                objects_right.append({'x': cx, 'depth': depth})
+            else:
+                objects_center.append({'x': cx, 'depth': depth})
+        
+        # Lógica de decisão:
+        # 1. Se tem objeto no centro, desvia para o lado com menos objetos
+        if len(objects_center) > 0:
+            if len(objects_left) < len(objects_right):
+                return 'left'
+            elif len(objects_right) < len(objects_left):
+                return 'right'
+            else:
+                # Empate: desvia para direita (padrão)
+                return 'right'
+        
+        # 2. Se tem objeto apenas na esquerda, desvia para direita
+        if len(objects_left) > 0 and len(objects_right) == 0:
+            return 'right'
+        
+        # 3. Se tem objeto apenas na direita, desvia para esquerda
+        if len(objects_right) > 0 and len(objects_left) == 0:
+            return 'left'
+        
+        # 4. Se tem objetos em ambos os lados, desvia para o lado com menos objetos
+        if len(objects_left) > 0 and len(objects_right) > 0:
+            if len(objects_left) < len(objects_right):
+                return 'left'
+            else:
+                return 'right'
+        
+        return None
         
     def decide_movement(self, tracked_objects):
         """
-        Decide próximo movimento baseado em tracking de objetos:
-        - Se há objeto rastreado → gira 45 graus horário
-        - Se não há objeto rastreado → vai reto
+        Decide próximo movimento baseado em análise inteligente de posição dos objetos
         """
-        # Verifica se há objetos rastreados
-        has_tracked_objects = tracked_objects and len(tracked_objects) > 0
-        
         detection_info = {
             'state': self.current_state,
             'tracked_count': len(tracked_objects) if tracked_objects else 0,
-            'rotation_counter': self.rotation_counter
+            'rotation_counter': self.rotation_counter,
+            'rotation_direction': self.rotation_direction
         }
         
         # Estado: rotacionando
@@ -602,21 +657,28 @@ class AutonomousNavigator:
             speed = int(self.base_speed * 0.6)
             
             if self.rotation_counter < self.rotation_steps_45deg:
-                # Continua girando
-                return 'rotate_right', speed, detection_info
+                # Continua girando na direção escolhida
+                command = 'rotate_left' if self.rotation_direction == 'left' else 'rotate_right'
+                return command, speed, detection_info
             else:
                 # Terminou a rotação, volta a andar reto
                 self.rotation_counter = 0
+                self.rotation_direction = None
                 self.current_state = 'forward'
                 return 'forward', self.base_speed, detection_info
         
         # Estado: andando reto
         elif self.current_state == 'forward':
-            if has_tracked_objects:
-                # Detectou objeto, inicia rotação de 45 graus
+            # Analisa posição dos obstáculos
+            avoidance_direction = self.analyze_object_position(tracked_objects)
+            
+            if avoidance_direction:
+                # Detectou obstáculo, inicia rotação na direção calculada
                 self.current_state = 'rotating'
                 self.rotation_counter = 0
-                return 'rotate_right', int(self.base_speed * 0.6), detection_info
+                self.rotation_direction = avoidance_direction
+                command = 'rotate_left' if avoidance_direction == 'left' else 'rotate_right'
+                return command, int(self.base_speed * 0.6), detection_info
             else:
                 # Caminho livre, continua reto
                 return 'forward', self.base_speed, detection_info
