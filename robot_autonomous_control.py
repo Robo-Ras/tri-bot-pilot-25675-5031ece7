@@ -722,8 +722,8 @@ class RobotController:
         speed_low = int(speed * 0.8)
         
         commands = {
-            'forward': (-speed_low, 0, speed),       # Frente: M1 menor (neg), M2 0, M3 maior (pos)
-            'backward': (speed, 0, -speed_low),      # Trás: M1 maior (pos), M2 0, M3 menor (neg)
+            'forward': (speed_low, 0, speed),        # Frente: M1 menor (mesmo sinal), M2 0, M3 maior
+            'backward': (-speed_low, 0, -speed),     # Trás: M1 menor (neg), M2 0, M3 maior (neg)
             'left': (0, -speed_low, speed),          # Esquerda: M1 0, M2 menor (neg), M3 maior (pos)
             'right': (0, speed, -speed_low),         # Direita: M1 0, M2 maior (pos), M3 menor (neg)
             'rotate_right': (speed, speed, speed),   # Rotação horária in-place
