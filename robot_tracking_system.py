@@ -227,7 +227,9 @@ class MultiCameraTracker:
                                             'camera': camera.name,
                                             'depth': depth,
                                             'depth_frame': depth_frame,
-                                            'depth_scale': camera.depth_scale
+                                            'depth_scale': camera.depth_scale,
+                                            'color_width': camera.color_width,
+                                            'color_height': camera.color_height
                                         })
                                     except Exception as e:
                                         print(f"      Erro ao processar box: {e}")
@@ -282,16 +284,15 @@ class MultiCameraTracker:
             depth = detection['depth']
             depth_scale = detection['depth_scale']
             depth_frame = detection['depth_frame']
+            color_w = detection.get('color_width', depth.shape[1])
+            color_h = detection.get('color_height', depth.shape[0])
             
             # Centro do bbox nas coordenadas da imagem colorida
             cx_color = (dbox[0] + dbox[2]) // 2
             cy_color = (dbox[1] + dbox[3]) // 2
             
             # Escala coordenadas para resolução do mapa de profundidade
-            # (necessário porque L515 tem depth 320x240 mas color 640x480)
-            color_h, color_w = 480, 640  # Resolução da imagem colorida
             depth_h, depth_w = depth.shape[0], depth.shape[1]
-            
             cx = int(cx_color * depth_w / color_w)
             cy = int(cy_color * depth_h / color_h)
             
