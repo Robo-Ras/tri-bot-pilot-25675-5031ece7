@@ -116,29 +116,29 @@ const DirectionalControl = ({ onSendCommand }: DirectionalControlProps) => {
         <div></div>
 
         <Button
-          onClick={moveLeft}
-          size="lg"
-          variant={activeDirection === 'left' ? 'default' : 'outline'}
-          className="aspect-square p-0"
-        >
-          <ArrowLeft size={24} />
-        </Button>
-        <Button
-          onClick={stop}
-          size="lg"
-          variant="destructive"
-          className="aspect-square p-0"
-        >
-          <Square size={24} />
-        </Button>
-        <Button
-          onClick={moveRight}
-          size="lg"
-          variant={activeDirection === 'right' ? 'default' : 'outline'}
-          className="aspect-square p-0"
-        >
-          <ArrowRight size={24} />
-        </Button>
+           onClick={moveLeft}
+           size="lg"
+           variant={activeDirection === 'left' ? 'default' : 'outline'}
+           className="aspect-square p-0"
+         >
+           <ArrowLeft size={24} />
+         </Button>
+         <Button
+           onClick={stop}
+           size="lg"
+           variant="destructive"
+           className="aspect-square p-0"
+         >
+           <Square size={24} />
+         </Button>
+         <Button
+           onClick={moveRight}
+           size="lg"
+           variant={activeDirection === 'right' ? 'default' : 'outline'}
+           className="aspect-square p-0"
+         >
+           <ArrowRight size={24} />
+         </Button>
 
         <div></div>
         <Button
@@ -153,12 +153,12 @@ const DirectionalControl = ({ onSendCommand }: DirectionalControlProps) => {
       </div>
 
       <div className="text-xs text-muted-foreground text-center space-y-1">
-        <p><strong>Comandos:</strong></p>
-        <p>Frente: M1=-{speed}, M2=0, M3={speed}</p>
-        <p>Trás: M1={speed}, M2=0, M3=-{speed}</p>
-        <p>Direita: M1=0, M2={speed}, M3=-{speed}</p>
-        <p>Esquerda: M1=0, M2=-{speed}, M3={speed}</p>
-      </div>
+         <p><strong>Comandos:</strong></p>
+         <p>Frente: M1={Math.round(speed * 0.5)}, M2=0, M3={speed}</p>
+         <p>Trás: M1={-speed}, M2=0, M3={-Math.round(speed * 0.5)}</p>
+         <p>Direita: M1=0, M2={speed}, M3={Math.round(speed * 0.5)}</p>
+         <p>Esquerda: M1=0, M2={Math.round(speed * 0.5)}, M3={speed}</p>
+       </div>
     </div>
   );
 };

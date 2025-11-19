@@ -717,23 +717,23 @@ class RobotController:
             return False
     
     def move(self, direction, speed):
-        """Move o robô em uma direção"""
-        # Calcula velocidade menor (50%)
-        speed_low = int(speed * 0.5)
-        
-        commands = {
-            'forward': (speed_low, 0, speed),       # M1: menor, M2: 0, M3: maior
-            'backward': (-speed, 0, -speed_low),    # M1: maior neg, M2: 0, M3: menor neg
-            'left': (0, -speed_low, speed),         # M1: 0, M2: menor neg, M3: maior
-            'right': (0, speed, -speed_low),        # M1: 0, M2: maior, M3: menor neg
-            'rotate_right': (speed, speed, speed),  # Rotação horária in-place
-            'stop': (0, 0, 0)
-        }
-        
-        if direction in commands:
-            m1, m2, m3 = commands[direction]
-            return self.send_command(m1, m2, m3)
-        return False
+         """Move o robô em uma direção"""
+         # Calcula velocidade menor (50%)
+         speed_low = int(speed * 0.5)
+         
+         commands = {
+             'forward': (speed_low, 0, speed),        # Frente: M1 menor, M2 0, M3 maior
+             'backward': (-speed, 0, -speed_low),     # Trás: M1 maior (neg), M2 0, M3 menor (neg)
+             'left': (0, speed_low, speed),           # Esquerda: M1 0, M2 menor, M3 maior
+             'right': (0, speed, speed_low),          # Direita: M1 0, M2 maior, M3 menor
+             'rotate_right': (speed, speed, speed),   # Rotação horária in-place
+             'stop': (0, 0, 0)
+         }
+         
+         if direction in commands:
+             m1, m2, m3 = commands[direction]
+             return self.send_command(m1, m2, m3)
+         return False
     
     def get_available_ports(self):
         """Lista portas seriais disponíveis"""
