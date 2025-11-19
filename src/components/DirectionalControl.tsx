@@ -13,23 +13,27 @@ const DirectionalControl = ({ onSendCommand }: DirectionalControlProps) => {
   const [activeDirection, setActiveDirection] = useState<string | null>(null);
 
   const moveForward = () => {
-    // M1: menor, M2: 0, M3: maior
-    onSendCommand(Math.round(speed * 0.5), 0, speed);
+    // Frente: M1 menor (negativo), M2: 0, M3: maior (positivo)
+    const m1 = -Math.round(speed * 0.8);
+    const m3 = speed;
+    onSendCommand(m1, 0, m3);
     setActiveDirection('forward');
   };
   const moveBackward = () => {
-    // M1: maior, M2: 0, M3: menor
-    onSendCommand(-speed, 0, -Math.round(speed * 0.5));
+    // Trás: M1 maior (positivo), M2: 0, M3: menor (negativo)
+    const m1 = speed;
+    const m3 = -Math.round(speed * 0.8);
+    onSendCommand(m1, 0, m3);
     setActiveDirection('backward');
   };
   const moveRight = () => {
-    // M1: 0, M2: maior, M3: menor negativo
-    onSendCommand(0, speed, -Math.round(speed * 0.5));
+    // Direita: M1: 0, M2: maior (positivo), M3: menor (negativo)
+    onSendCommand(0, speed, -Math.round(speed * 0.8));
     setActiveDirection('right');
   };
   const moveLeft = () => {
-    // M1: 0, M2: menor negativo, M3: maior
-    onSendCommand(0, -Math.round(speed * 0.5), speed);
+    // Esquerda: M1: 0, M2: menor (negativo), M3: maior (positivo)
+    onSendCommand(0, -Math.round(speed * 0.8), speed);
     setActiveDirection('left');
   };
   const stop = () => {
@@ -154,10 +158,10 @@ const DirectionalControl = ({ onSendCommand }: DirectionalControlProps) => {
 
       <div className="text-xs text-muted-foreground text-center space-y-1">
          <p><strong>Comandos:</strong></p>
-         <p>Frente: M1={Math.round(speed * 0.5)}, M2=0, M3={speed}</p>
-         <p>Trás: M1={-speed}, M2=0, M3={-Math.round(speed * 0.5)}</p>
-         <p>Direita: M1=0, M2={speed}, M3={Math.round(speed * 0.5)}</p>
-         <p>Esquerda: M1=0, M2={Math.round(speed * 0.5)}, M3={speed}</p>
+         <p>Frente: M1={-Math.round(speed * 0.8)}, M2=0, M3={speed}</p>
+         <p>Trás: M1={speed}, M2=0, M3={-Math.round(speed * 0.8)}</p>
+         <p>Direita: M1=0, M2={speed}, M3={-Math.round(speed * 0.8)}</p>
+         <p>Esquerda: M1=0, M2={-Math.round(speed * 0.8)}, M3={speed}</p>
        </div>
     </div>
   );
