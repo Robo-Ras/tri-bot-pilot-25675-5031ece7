@@ -573,83 +573,55 @@ class ObstacleDetector:
 
 
 class AutonomousNavigator:
-    """Sistema de navegação autônoma com desvio em 45 graus"""
+    """Sistema de navegação autônoma baseado em tracking de objetos"""
     
     def __init__(self):
-        self.current_state = 'forward'  # 'forward' ou 'checking'
+        self.current_state = 'forward'  # 'forward' ou 'rotating'
         self.base_speed = 100
         self.rotation_counter = 0
         self.rotation_steps_45deg = 2  # Ajuste conforme necessário para 45 graus
         
-    def decide_movement(self, ground_obstacles, height_obstacles):
-        """Decide próximo movimento: sempre reto, desvia quando detecta obstáculo"""
-        distances = {
-            'left': 10.0,
-            'center': 10.0,
-            'right': 10.0
-        }
-        
-        sensor_mode = "none"
-        if ground_obstacles and height_obstacles:
-            sensor_mode = "both"
-        elif ground_obstacles:
-            sensor_mode = "lidar"
-        elif height_obstacles:
-            sensor_mode = "camera"
-        
-        if ground_obstacles:
-            distances['left'] = min(distances['left'], ground_obstacles['distances']['left'])
-            distances['center'] = min(distances['center'], ground_obstacles['distances']['center'])
-            distances['right'] = min(distances['right'], ground_obstacles['distances']['right'])
-        
-        if height_obstacles:
-            distances['left'] = min(distances['left'], height_obstacles['distances']['left'])
-            distances['center'] = min(distances['center'], height_obstacles['distances']['center'])
-            distances['right'] = min(distances['right'], height_obstacles['distances']['right'])
-        
-        if not ground_obstacles and not height_obstacles:
-            return 'stop', 0, {}
+    def decide_movement(self, tracked_objects):
+        """
+        Decide próximo movimento baseado em tracking de objetos:
+        - Se há objeto rastreado → gira 45 graus horário
+        - Se não há objeto rastreado → vai reto
+        """
+        # Verifica se há objetos rastreados
+        has_tracked_objects = tracked_objects and len(tracked_objects) > 0
         
         detection_info = {
-            'mode': sensor_mode,
             'state': self.current_state,
-            'distances': distances.copy(),
+            'tracked_count': len(tracked_objects) if tracked_objects else 0,
             'rotation_counter': self.rotation_counter
         }
         
-        # Estado: verificando caminho após rotação
-        if self.current_state == 'checking':
-            # Verifica se há caminho livre à frente
-            if distances['center'] > 1.5:
-                # Caminho livre, volta a andar reto
-                self.current_state = 'forward'
-                self.rotation_counter = 0
-                return 'forward', self.base_speed, detection_info
+        # Estado: rotacionando
+        if self.current_state == 'rotating':
+            self.rotation_counter += 1
+            speed = int(self.base_speed * 0.6)
+            
+            if self.rotation_counter < self.rotation_steps_45deg:
+                # Continua girando
+                return 'rotate_right', speed, detection_info
             else:
-                # Ainda bloqueado, gira mais 45 graus
-                self.rotation_counter += 1
-                speed = int(self.base_speed * 0.6)
-                
-                if self.rotation_counter <= self.rotation_steps_45deg:
-                    return 'rotate_right', speed, detection_info
-                else:
-                    # Terminou de girar, volta a checar
-                    self.rotation_counter = 0
-                    return 'stop', 0, detection_info
+                # Terminou a rotação, volta a andar reto
+                self.rotation_counter = 0
+                self.current_state = 'forward'
+                return 'forward', self.base_speed, detection_info
         
         # Estado: andando reto
         elif self.current_state == 'forward':
-            # Verifica se há obstáculo à frente
-            if distances['center'] < 1.2:
-                # Obstáculo detectado, inicia rotação de 45 graus
-                self.current_state = 'checking'
+            if has_tracked_objects:
+                # Detectou objeto, inicia rotação de 45 graus
+                self.current_state = 'rotating'
                 self.rotation_counter = 0
-                return 'stop', 0, detection_info
+                return 'rotate_right', int(self.base_speed * 0.6), detection_info
             else:
                 # Caminho livre, continua reto
                 return 'forward', self.base_speed, detection_info
         
-        return 'stop', 0, detection_info
+        return 'forward', self.base_speed, detection_info
 
 
 class RobotController:
@@ -952,25 +924,21 @@ class WebSocketServer:
                 
                 # NAVEGAÇÃO AUTÔNOMA
                 if self.autonomous_mode and self.robot.is_connected():
-                    ground_obstacles = message.get('ground_obstacles')
-                    height_obstacles = message.get('height_obstacles')
+                    tracked_objects = message.get('tracked_objects', [])
                     
-                    if ground_obstacles or height_obstacles:
-                        direction, speed, nav_info = self.navigator.decide_movement(
-                            ground_obstacles, height_obstacles
-                        )
-                        
-                        if direction and speed > 0:
-                            self.robot.move(direction, speed)
-                            self.robot_moving = True
-                            message['navigation'] = {
-                                'direction': direction,
-                                'speed': speed,
-                                'info': nav_info
-                            }
-                        elif direction == 'stop':
-                            self.robot.move('stop', 0)
-                            self.robot_moving = False
+                    direction, speed, nav_info = self.navigator.decide_movement(tracked_objects)
+                    
+                    if direction and speed > 0:
+                        self.robot.move(direction, speed)
+                        self.robot_moving = True
+                        message['navigation'] = {
+                            'direction': direction,
+                            'speed': speed,
+                            'info': nav_info
+                        }
+                    elif direction == 'stop':
+                        self.robot.move('stop', 0)
+                        self.robot_moving = False
                 
                 await self.send_to_all(message)
                 
