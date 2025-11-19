@@ -283,11 +283,20 @@ class MultiCameraTracker:
             depth_scale = detection['depth_scale']
             depth_frame = detection['depth_frame']
             
-            cx = (dbox[0] + dbox[2]) // 2
-            cy = (dbox[1] + dbox[3]) // 2
+            # Centro do bbox nas coordenadas da imagem colorida
+            cx_color = (dbox[0] + dbox[2]) // 2
+            cy_color = (dbox[1] + dbox[3]) // 2
+            
+            # Escala coordenadas para resolução do mapa de profundidade
+            # (necessário porque L515 tem depth 320x240 mas color 640x480)
+            color_h, color_w = 480, 640  # Resolução da imagem colorida
+            depth_h, depth_w = depth.shape[0], depth.shape[1]
+            
+            cx = int(cx_color * depth_w / color_w)
+            cy = int(cy_color * depth_h / color_h)
             
             # Verifica limites
-            if cx < 0 or cx >= depth.shape[1] or cy < 0 or cy >= depth.shape[0]:
+            if cx < 0 or cx >= depth_w or cy < 0 or cy >= depth_h:
                 continue
                 
             dist = depth[cy, cx] * depth_scale
@@ -303,7 +312,7 @@ class MultiCameraTracker:
             except:
                 pos_3d = (0, 0, 0)
             
-            # Encontra tracker mais próximo
+            # Encontra tracker mais próximo (em coordenadas da imagem colorida)
             best = None
             best_dist = TRACKER_DIST_THRESHOLD_PIX + 1
             
@@ -311,7 +320,7 @@ class MultiCameraTracker:
                 if tr.camera_name != camera_name:
                     continue
                 tx, ty = tr.current_center()
-                d = math.hypot(tx - cx, ty - cy)
+                d = math.hypot(tx - cx_color, ty - cy_color)
                 if d < best_dist:
                     best_dist = d
                     best = tr
