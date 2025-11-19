@@ -710,6 +710,7 @@ class RobotController:
         
         try:
             command = f"{m1},{m2},{m3}\n"
+            print(f"📤 ENVIANDO PARA ARDUINO: {command.strip()}")
             self.serial_port.write(command.encode())
             return True
         except Exception as e:
@@ -862,6 +863,7 @@ class WebSocketServer:
             
         elif cmd_type == 'move':
             if 'm1' in data and 'm2' in data and 'm3' in data:
+                print(f"🎮 COMANDO RECEBIDO DO FRONTEND: M1={data['m1']}, M2={data['m2']}, M3={data['m3']}")
                 self.robot.send_command(data['m1'], data['m2'], data['m3'])
                 self.robot_moving = any([data['m1'] != 0, data['m2'] != 0, data['m3'] != 0])
             else:
