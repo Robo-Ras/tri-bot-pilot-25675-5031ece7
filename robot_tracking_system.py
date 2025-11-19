@@ -227,9 +227,7 @@ class MultiCameraTracker:
                                             'camera': camera.name,
                                             'depth': depth,
                                             'depth_frame': depth_frame,
-                                            'depth_scale': camera.depth_scale,
-                                            'color_width': camera.color_width,
-                                            'color_height': camera.color_height
+                                            'depth_scale': camera.depth_scale
                                         })
                                     except Exception as e:
                                         print(f"      Erro ao processar box: {e}")
@@ -284,20 +282,12 @@ class MultiCameraTracker:
             depth = detection['depth']
             depth_scale = detection['depth_scale']
             depth_frame = detection['depth_frame']
-            color_w = detection.get('color_width', depth.shape[1])
-            color_h = detection.get('color_height', depth.shape[0])
             
-            # Centro do bbox nas coordenadas da imagem colorida
-            cx_color = (dbox[0] + dbox[2]) // 2
-            cy_color = (dbox[1] + dbox[3]) // 2
-            
-            # Escala coordenadas para resolução do mapa de profundidade
-            depth_h, depth_w = depth.shape[0], depth.shape[1]
-            cx = int(cx_color * depth_w / color_w)
-            cy = int(cy_color * depth_h / color_h)
+            cx = (dbox[0] + dbox[2]) // 2
+            cy = (dbox[1] + dbox[3]) // 2
             
             # Verifica limites
-            if cx < 0 or cx >= depth_w or cy < 0 or cy >= depth_h:
+            if cx < 0 or cx >= depth.shape[1] or cy < 0 or cy >= depth.shape[0]:
                 continue
                 
             dist = depth[cy, cx] * depth_scale
@@ -313,7 +303,7 @@ class MultiCameraTracker:
             except:
                 pos_3d = (0, 0, 0)
             
-            # Encontra tracker mais próximo (em coordenadas da imagem colorida)
+            # Encontra tracker mais próximo
             best = None
             best_dist = TRACKER_DIST_THRESHOLD_PIX + 1
             
@@ -321,7 +311,7 @@ class MultiCameraTracker:
                 if tr.camera_name != camera_name:
                     continue
                 tx, ty = tr.current_center()
-                d = math.hypot(tx - cx_color, ty - cy_color)
+                d = math.hypot(tx - cx, ty - cy)
                 if d < best_dist:
                     best_dist = d
                     best = tr
