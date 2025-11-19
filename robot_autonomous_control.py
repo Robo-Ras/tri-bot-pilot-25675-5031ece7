@@ -573,25 +573,23 @@ class ObstacleDetector:
 
 
 class AutonomousNavigator:
-    """Sistema de navegação autônoma"""
+    """Sistema de navegação autônoma - Anda reto e gira 45° ao detectar obstáculos"""
     
     def __init__(self):
-        self.current_state = 'moving'
+        self.current_state = 'forward'  # 'forward' ou 'rotating'
         self.base_speed = 100
-        self.move_counter = 0
-        self.rotation_counter = 0
-        self.free_path_counter = 0
-        self.max_moves_before_rotation = 8
-        self.rotation_steps = 3
+        self.rotation_count = 0  # Contador de rotações de 45° executadas
+        self.max_rotations = 8  # Máximo de rotações antes de parar (360°/45° = 8)
         
     def decide_movement(self, ground_obstacles, height_obstacles):
-        """Decide próximo movimento"""
+        """Decide próximo movimento baseado em obstáculos"""
         distances = {
             'left': 10.0,
             'center': 10.0,
             'right': 10.0
         }
         
+        # Determinar modo de sensor
         sensor_mode = "none"
         if ground_obstacles and height_obstacles:
             sensor_mode = "both"
@@ -600,6 +598,7 @@ class AutonomousNavigator:
         elif height_obstacles:
             sensor_mode = "camera"
         
+        # Combinar distâncias de ambos os sensores (pegar a menor)
         if ground_obstacles:
             distances['left'] = min(distances['left'], ground_obstacles['distances']['left'])
             distances['center'] = min(distances['center'], ground_obstacles['distances']['center'])
@@ -610,71 +609,57 @@ class AutonomousNavigator:
             distances['center'] = min(distances['center'], height_obstacles['distances']['center'])
             distances['right'] = min(distances['right'], height_obstacles['distances']['right'])
         
+        # Se não há sensores ativos, parar
         if not ground_obstacles and not height_obstacles:
-            return 'stop', 0, {}
+            return 'stop', 0, {'mode': 'no_sensors', 'state': self.current_state}
         
         detection_info = {
             'mode': sensor_mode,
             'state': self.current_state,
             'distances': distances.copy(),
-            'free_moves': self.free_path_counter
+            'rotation_count': self.rotation_count
         }
         
-        # Estado de rotação
-        if self.current_state == 'rotating':
-            self.rotation_counter += 1
-            speed = int(self.base_speed * 0.6)
-            
-            if self.rotation_counter <= self.rotation_steps:
-                return 'rotate_right', speed, detection_info
-            else:
-                self.rotation_counter = 0
-                self.free_path_counter = 0
-                self.current_state = 'moving'
-                return 'stop', 0, detection_info
+        # Verificar se o caminho à frente está livre (centro)
+        path_clear = distances['center'] > 1.2  # Distância segura de 1.2m
         
-        # Estado de movimento
-        elif self.current_state == 'moving':
-            self.move_counter += 1
-            
-            obstacle_detected = (
-                distances['center'] < 1.2 or 
-                distances['left'] < 0.8 or 
-                distances['right'] < 0.8
-            )
-            
-            if obstacle_detected:
-                self.free_path_counter = 0
-                
-                if distances['center'] < 1.2:
-                    if distances['right'] > distances['left'] and distances['right'] > 1.0:
-                        speed = int(self.base_speed * 0.6)
-                        return 'right', speed, detection_info
-                    elif distances['left'] > 1.0:
-                        speed = int(self.base_speed * 0.6)
-                        return 'left', speed, detection_info
-                    else:
-                        speed = int(self.base_speed * 0.5)
-                        return 'backward', speed, detection_info
-                
-                elif distances['left'] < 0.8:
-                    speed = int(self.base_speed * 0.5)
-                    return 'right', speed, detection_info
-                
-                elif distances['right'] < 0.8:
-                    speed = int(self.base_speed * 0.5)
-                    return 'left', speed, detection_info
-            
+        # Estado: Andando reto
+        if self.current_state == 'forward':
+            if path_clear:
+                # Caminho livre - continuar reto
+                self.rotation_count = 0  # Reset contador de rotações
+                speed = int(self.base_speed * 0.8)
+                return 'forward', speed, detection_info
             else:
-                self.free_path_counter += 1
-                
-                if self.free_path_counter >= self.max_moves_before_rotation:
-                    self.current_state = 'rotating'
-                    self.rotation_counter = 0
+                # Obstáculo detectado - mudar para modo de rotação
+                self.current_state = 'rotating'
+                self.rotation_count = 0
+                # Executar primeira rotação de 45°
+                speed = int(self.base_speed * 0.6)
+                return 'rotate_right', speed, detection_info
+        
+        # Estado: Rotacionando para encontrar caminho livre
+        elif self.current_state == 'rotating':
+            self.rotation_count += 1
+            
+            # Verificar se o caminho está livre após rotação
+            if path_clear:
+                # Caminho livre encontrado - voltar a andar reto
+                self.current_state = 'forward'
+                self.rotation_count = 0
+                speed = int(self.base_speed * 0.8)
+                return 'forward', speed, detection_info
+            else:
+                # Caminho ainda bloqueado - girar mais 45°
+                if self.rotation_count >= self.max_rotations:
+                    # Já girou 360° e não encontrou caminho - parar
+                    self.current_state = 'forward'
+                    self.rotation_count = 0
                     return 'stop', 0, detection_info
                 else:
-                    speed = int(self.base_speed * 0.8)
-                    return 'forward', speed, detection_info
+                    # Continuar girando 45°
+                    speed = int(self.base_speed * 0.6)
+                    return 'rotate_right', speed, detection_info
         
         return 'stop', 0, detection_info
 
