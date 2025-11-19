@@ -576,12 +576,18 @@ class AutonomousNavigator:
     """Sistema de navegação autônoma baseado em análise posicional de objetos"""
     
     def __init__(self):
-        self.current_state = 'forward'
+        self.current_state = 'moving_forward'
         self.base_speed = 100
         self.rotation_counter = 0
         self.rotation_steps_45deg = 2
         self.rotation_direction = None  # 'left' ou 'right'
         self.image_width = 640  # Resolução da D435
+        
+        # Controle de exploração: andar e girar para observar
+        self.forward_counter = 0
+        self.forward_steps = 15  # Quantos passos andar reto antes de escanear
+        self.scan_counter = 0
+        self.scan_steps = 6  # Quantos passos girar para escanear ao redor
         
     def analyze_object_position(self, tracked_objects):
         """
@@ -642,45 +648,69 @@ class AutonomousNavigator:
         
     def decide_movement(self, tracked_objects):
         """
-        Decide próximo movimento baseado em análise inteligente de posição dos objetos
+        Decide próximo movimento: alterna entre andar reto e girar para escanear
         """
         detection_info = {
             'state': self.current_state,
             'tracked_count': len(tracked_objects) if tracked_objects else 0,
-            'rotation_counter': self.rotation_counter,
-            'rotation_direction': self.rotation_direction
+            'forward_counter': self.forward_counter,
+            'scan_counter': self.scan_counter
         }
         
-        # Estado: rotacionando
-        if self.current_state == 'rotating':
-            self.rotation_counter += 1
-            speed = int(self.base_speed * 0.6)
+        # Estado: girando para escanear ambiente
+        if self.current_state == 'scanning':
+            self.scan_counter += 1
+            speed = int(self.base_speed * 0.5)  # Gira devagar
             
-            if self.rotation_counter < self.rotation_steps_45deg:
-                # Continua girando na direção escolhida
-                command = 'rotate_left' if self.rotation_direction == 'left' else 'rotate_right'
-                return command, speed, detection_info
+            if self.scan_counter < self.scan_steps:
+                # Continua girando no sentido horário para observar
+                return 'rotate_right', speed, detection_info
             else:
-                # Terminou a rotação, volta a andar reto
-                self.rotation_counter = 0
-                self.rotation_direction = None
-                self.current_state = 'forward'
+                # Terminou o scan, volta a andar reto
+                self.scan_counter = 0
+                self.forward_counter = 0
+                self.current_state = 'moving_forward'
                 return 'forward', self.base_speed, detection_info
         
-        # Estado: andando reto
-        elif self.current_state == 'forward':
-            # Analisa posição dos obstáculos
+        # Estado: andando reto (com desvio de obstáculos)
+        elif self.current_state == 'moving_forward':
+            self.forward_counter += 1
+            
+            # Verifica se precisa escanear o ambiente
+            if self.forward_counter >= self.forward_steps:
+                # Chegou a hora de escanear
+                self.current_state = 'scanning'
+                self.scan_counter = 0
+                return 'rotate_right', int(self.base_speed * 0.5), detection_info
+            
+            # Verifica se há obstáculos no caminho
             avoidance_direction = self.analyze_object_position(tracked_objects)
             
             if avoidance_direction:
-                # Detectou obstáculo, inicia rotação na direção calculada
-                self.current_state = 'rotating'
+                # Detectou obstáculo, inicia rotação de desvio na direção calculada
+                self.current_state = 'avoiding'
                 self.rotation_counter = 0
                 self.rotation_direction = avoidance_direction
                 command = 'rotate_left' if avoidance_direction == 'left' else 'rotate_right'
                 return command, int(self.base_speed * 0.6), detection_info
             else:
                 # Caminho livre, continua reto
+                return 'forward', self.base_speed, detection_info
+        
+        # Estado: desviando de obstáculo
+        elif self.current_state == 'avoiding':
+            self.rotation_counter += 1
+            speed = int(self.base_speed * 0.6)
+            
+            if self.rotation_counter < self.rotation_steps_45deg:
+                # Continua girando na direção de desvio
+                command = 'rotate_left' if self.rotation_direction == 'left' else 'rotate_right'
+                return command, speed, detection_info
+            else:
+                # Terminou o desvio, volta a andar reto
+                self.rotation_counter = 0
+                self.rotation_direction = None
+                self.current_state = 'moving_forward'
                 return 'forward', self.base_speed, detection_info
         
         return 'forward', self.base_speed, detection_info
