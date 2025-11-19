@@ -13,27 +13,23 @@ const DirectionalControl = ({ onSendCommand }: DirectionalControlProps) => {
   const [activeDirection, setActiveDirection] = useState<string | null>(null);
 
   const moveForward = () => {
-    // Frente: M1 menor (mesmo sinal), M2: 0, M3: maior
-    const m1 = Math.round(speed * 0.8);
-    const m3 = speed;
-    onSendCommand(m1, 0, m3);
+    // Frente: M1=-speed, M2=0, M3=+speed
+    onSendCommand(-speed, 0, speed);
     setActiveDirection('forward');
   };
   const moveBackward = () => {
-    // Trás: M1 menor (negativo), M2: 0, M3: maior (negativo)
-    const m1 = -Math.round(speed * 0.8);
-    const m3 = -speed;
-    onSendCommand(m1, 0, m3);
+    // Trás: M1=+speed, M2=0, M3=-speed
+    onSendCommand(speed, 0, -speed);
     setActiveDirection('backward');
   };
   const moveRight = () => {
-    // Direita: M1: 0, M2: maior (positivo), M3: menor (negativo)
-    onSendCommand(0, speed, -Math.round(speed * 0.8));
+    // Direita: M1=0, M2=+speed, M3=-speed
+    onSendCommand(0, speed, -speed);
     setActiveDirection('right');
   };
   const moveLeft = () => {
-    // Esquerda: M1: 0, M2: menor (negativo), M3: maior (positivo)
-    onSendCommand(0, -Math.round(speed * 0.8), speed);
+    // Esquerda: M1=0, M2=-speed, M3=+speed
+    onSendCommand(0, -speed, speed);
     setActiveDirection('left');
   };
   const stop = () => {
@@ -158,10 +154,10 @@ const DirectionalControl = ({ onSendCommand }: DirectionalControlProps) => {
 
       <div className="text-xs text-muted-foreground text-center space-y-1">
          <p><strong>Comandos:</strong></p>
-         <p>Frente: M1={Math.round(speed * 0.8)}, M2=0, M3={speed}</p>
-         <p>Trás: M1={-Math.round(speed * 0.8)}, M2=0, M3={-speed}</p>
-         <p>Direita: M1=0, M2={speed}, M3={-Math.round(speed * 0.8)}</p>
-         <p>Esquerda: M1=0, M2={-Math.round(speed * 0.8)}, M3={speed}</p>
+         <p>Frente: M1={-speed}, M2=0, M3={speed}</p>
+         <p>Trás: M1={speed}, M2=0, M3={-speed}</p>
+         <p>Direita: M1=0, M2={speed}, M3={-speed}</p>
+         <p>Esquerda: M1=0, M2={-speed}, M3={speed}</p>
        </div>
     </div>
   );

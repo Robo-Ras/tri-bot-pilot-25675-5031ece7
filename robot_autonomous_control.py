@@ -718,14 +718,12 @@ class RobotController:
     
     def move(self, direction, speed):
         """Move o robô em uma direção"""
-        # Calcula velocidade menor (80%) para manter leve assimetria
-        speed_low = int(speed * 0.8)
         
         commands = {
-            'forward': (speed_low, 0, speed),        # Frente: M1 menor (mesmo sinal), M2 0, M3 maior
-            'backward': (-speed_low, 0, -speed),     # Trás: M1 menor (neg), M2 0, M3 maior (neg)
-            'left': (0, -speed_low, speed),          # Esquerda: M1 0, M2 menor (neg), M3 maior (pos)
-            'right': (0, speed, -speed_low),         # Direita: M1 0, M2 maior (pos), M3 menor (neg)
+            'forward': (-speed, 0, speed),           # Frente: M1=-speed, M2=0, M3=+speed
+            'backward': (speed, 0, -speed),          # Trás: M1=+speed, M2=0, M3=-speed
+            'left': (0, -speed, speed),              # Esquerda: M1=0, M2=-speed, M3=+speed
+            'right': (0, speed, -speed),             # Direita: M1=0, M2=+speed, M3=-speed
             'rotate_right': (speed, speed, speed),   # Rotação horária in-place
             'stop': (0, 0, 0)
         }
