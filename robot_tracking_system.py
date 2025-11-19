@@ -35,6 +35,7 @@ class Camera:
         self.align = None
         self.depth_scale = None
         self.profile = None
+        self.is_lidar = 'L515' in name  # Identifica se é LiDAR
         
     def start(self):
         """Inicializa a câmera"""
@@ -170,8 +171,9 @@ class MultiCameraTracker:
             print(f"  Câmera encontrada: {name} (S/N: {serial})")
             
             # Configurações específicas para cada tipo
+            # L515: aumentar resolução para melhor detecção YOLO
             if 'L515' in name:
-                camera = Camera(serial, "L515", 320, 240, 640, 480)
+                camera = Camera(serial, "L515", 640, 480, 640, 480)
             elif 'D435' in name:
                 camera = Camera(serial, "D435", 640, 480, 640, 480)
             else:
@@ -199,18 +201,32 @@ class MultiCameraTracker:
                     if color is None or depth is None:
                         continue
                         
+                    # Pré-processamento específico para L515
+                    processed_color = color.copy()
+                    if camera.is_lidar:
+                        # L515: aumentar contraste e nitidez para melhor detecção
+                        processed_color = cv2.convertScaleAbs(color, alpha=1.2, beta=10)
+                        kernel = np.array([[-1,-1,-1], [-1,9,-1], [-1,-1,-1]])
+                        processed_color = cv2.filter2D(processed_color, -1, kernel)
+                    
                     camera_frames[camera.name] = {
                         'color': color,
                         'depth': depth,
                         'depth_frame': depth_frame,
                         'depth_scale': camera.depth_scale,
-                        'annotated': color.copy()
+                        'annotated': processed_color.copy()
                     }
                     
                     # Detecção YOLO apenas em intervalos
                     if self.frame_idx % DETECTION_INTERVAL == 0:
                         try:
-                            results = self.model(color, verbose=False)
+                            # Usa imagem processada para L515, original para D435
+                            detection_image = processed_color if camera.is_lidar else color
+                            
+                            # Confiança mínima ajustada por câmera
+                            min_conf = 0.35 if camera.is_lidar else 0.4
+                            
+                            results = self.model(detection_image, verbose=False, conf=min_conf)
                             for r in results:
                                 for box in r.boxes:
                                     try:
@@ -303,9 +319,12 @@ class MultiCameraTracker:
             except:
                 pos_3d = (0, 0, 0)
             
-            # Encontra tracker mais próximo
+            # Encontra tracker mais próximo DA MESMA CÂMERA
             best = None
             best_dist = TRACKER_DIST_THRESHOLD_PIX + 1
+            
+            # Para L515, usa threshold maior devido à natureza do LiDAR
+            threshold = TRACKER_DIST_THRESHOLD_PIX * 1.5 if camera_name == "L515" else TRACKER_DIST_THRESHOLD_PIX
             
             for tr in self.trackers:
                 if tr.camera_name != camera_name:
@@ -316,7 +335,7 @@ class MultiCameraTracker:
                     best_dist = d
                     best = tr
             
-            if best and best_dist < TRACKER_DIST_THRESHOLD_PIX:
+            if best and best_dist < threshold:
                 best.update(dbox, camera_name)
                 best.depth = dist
                 best.position_3d = pos_3d
@@ -344,11 +363,15 @@ class MultiCameraTracker:
             x1, y1, x2, y2 = map(int, tr.current_bbox())
             cx, cy = tr.current_center()
             
-            # Cor baseada na câmera
-            color = (0, 255, 0) if tr.camera_name == camera_name else (255, 255, 0)
+            # Cor baseada na câmera - VERDE para D435, AZUL para L515
+            if camera_name == "L515":
+                color = (255, 165, 0)  # Laranja para L515 (LiDAR)
+            else:
+                color = (0, 255, 0)    # Verde para D435
             
-            # Label
-            label = f"{tr.class_name} #{tr.id} {tr.conf:.2f} {tr.depth:.2f}m"
+            # Label com identificação da câmera
+            camera_tag = "[L515]" if camera_name == "L515" else "[D435]"
+            label = f"{camera_tag} {tr.class_name} #{tr.id} {tr.conf:.2f} {tr.depth:.2f}m"
             
             # Desenha
             cv2.rectangle(annotated, (x1, y1), (x2, y2), color, 2)
