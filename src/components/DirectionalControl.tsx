@@ -13,16 +13,16 @@ const DirectionalControl = ({ onSendCommand }: DirectionalControlProps) => {
   const [activeDirection, setActiveDirection] = useState<string | null>(null);
 
   const moveForward = () => {
-    // Frente: M1 menor (negativo), M2: 0, M3: maior (positivo)
-    const m1 = -Math.round(speed * 0.8);
+    // Frente: M1 menor (mesmo sinal), M2: 0, M3: maior
+    const m1 = Math.round(speed * 0.8);
     const m3 = speed;
     onSendCommand(m1, 0, m3);
     setActiveDirection('forward');
   };
   const moveBackward = () => {
-    // Trás: M1 maior (positivo), M2: 0, M3: menor (negativo)
-    const m1 = speed;
-    const m3 = -Math.round(speed * 0.8);
+    // Trás: M1 menor (negativo), M2: 0, M3: maior (negativo)
+    const m1 = -Math.round(speed * 0.8);
+    const m3 = -speed;
     onSendCommand(m1, 0, m3);
     setActiveDirection('backward');
   };
@@ -158,8 +158,8 @@ const DirectionalControl = ({ onSendCommand }: DirectionalControlProps) => {
 
       <div className="text-xs text-muted-foreground text-center space-y-1">
          <p><strong>Comandos:</strong></p>
-         <p>Frente: M1={-Math.round(speed * 0.8)}, M2=0, M3={speed}</p>
-         <p>Trás: M1={speed}, M2=0, M3={-Math.round(speed * 0.8)}</p>
+         <p>Frente: M1={Math.round(speed * 0.8)}, M2=0, M3={speed}</p>
+         <p>Trás: M1={-Math.round(speed * 0.8)}, M2=0, M3={-speed}</p>
          <p>Direita: M1=0, M2={speed}, M3={-Math.round(speed * 0.8)}</p>
          <p>Esquerda: M1=0, M2={-Math.round(speed * 0.8)}, M3={speed}</p>
        </div>
