@@ -47,16 +47,18 @@ const DirectionalControl = ({ onSendCommand }: DirectionalControlProps) => {
   }, [onSendCommand]);
 
   const rotateClockwise = useCallback(() => {
-    // Rotação horária: M1=+speed, M2=+speed, M3=+speed
-    console.log(`🎯 rotateClockwise chamado com speed=${speed}, enviando: M1=${speed}, M2=${speed}, M3=${speed}`);
-    onSendCommand(speed, speed, speed);
+    // Rotação horária: M1=+speed, M2=+speed, M3=+speed (60% da velocidade)
+    const rotateSpeed = Math.round(speed * 0.6);
+    console.log(`🎯 rotateClockwise chamado com speed=${speed}, enviando: M1=${rotateSpeed}, M2=${rotateSpeed}, M3=${rotateSpeed}`);
+    onSendCommand(rotateSpeed, rotateSpeed, rotateSpeed);
     setActiveDirection('clockwise');
   }, [speed, onSendCommand]);
 
   const rotateCounterClockwise = useCallback(() => {
-    // Rotação anti-horária: M1=-speed, M2=-speed, M3=-speed
-    console.log(`🎯 rotateCounterClockwise chamado com speed=${speed}, enviando: M1=${-speed}, M2=${-speed}, M3=${-speed}`);
-    onSendCommand(-speed, -speed, -speed);
+    // Rotação anti-horária: M1=-speed, M2=-speed, M3=-speed (60% da velocidade)
+    const rotateSpeed = Math.round(speed * 0.6);
+    console.log(`🎯 rotateCounterClockwise chamado com speed=${speed}, enviando: M1=${-rotateSpeed}, M2=${-rotateSpeed}, M3=${-rotateSpeed}`);
+    onSendCommand(-rotateSpeed, -rotateSpeed, -rotateSpeed);
     setActiveDirection('counterclockwise');
   }, [speed, onSendCommand]);
 
