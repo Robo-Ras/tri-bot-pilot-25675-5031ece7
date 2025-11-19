@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Input } from '@/components/ui/input';
@@ -12,30 +12,39 @@ const DirectionalControl = ({ onSendCommand }: DirectionalControlProps) => {
   const [speed, setSpeed] = useState(60);
   const [activeDirection, setActiveDirection] = useState<string | null>(null);
 
-  const moveForward = () => {
+  const moveForward = useCallback(() => {
     // Frente: M1=-speed, M2=0, M3=+speed
+    console.log(`🎯 moveForward chamado com speed=${speed}, enviando: M1=${-speed}, M2=0, M3=${speed}`);
     onSendCommand(-speed, 0, speed);
     setActiveDirection('forward');
-  };
-  const moveBackward = () => {
+  }, [speed, onSendCommand]);
+  
+  const moveBackward = useCallback(() => {
     // Trás: M1=+speed, M2=0, M3=-speed
+    console.log(`🎯 moveBackward chamado com speed=${speed}, enviando: M1=${speed}, M2=0, M3=${-speed}`);
     onSendCommand(speed, 0, -speed);
     setActiveDirection('backward');
-  };
-  const moveRight = () => {
+  }, [speed, onSendCommand]);
+  
+  const moveRight = useCallback(() => {
     // Direita: M1=0, M2=+speed, M3=-speed
+    console.log(`🎯 moveRight chamado com speed=${speed}, enviando: M1=0, M2=${speed}, M3=${-speed}`);
     onSendCommand(0, speed, -speed);
     setActiveDirection('right');
-  };
-  const moveLeft = () => {
+  }, [speed, onSendCommand]);
+  
+  const moveLeft = useCallback(() => {
     // Esquerda: M1=0, M2=-speed, M3=+speed
+    console.log(`🎯 moveLeft chamado com speed=${speed}, enviando: M1=0, M2=${-speed}, M3=${speed}`);
     onSendCommand(0, -speed, speed);
     setActiveDirection('left');
-  };
-  const stop = () => {
+  }, [speed, onSendCommand]);
+  
+  const stop = useCallback(() => {
+    console.log(`🎯 stop chamado`);
     onSendCommand(0, 0, 0);
     setActiveDirection(null);
-  };
+  }, [onSendCommand]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -68,7 +77,7 @@ const DirectionalControl = ({ onSendCommand }: DirectionalControlProps) => {
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [speed]);
+  }, [moveForward, moveBackward, moveRight, moveLeft, stop]);
 
   return (
     <div className="space-y-6">
