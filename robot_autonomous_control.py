@@ -737,6 +737,7 @@ class RobotController:
             'left': (0, -speed, speed),              # Esquerda: M1=0, M2=-speed, M3=+speed
             'right': (0, speed, -speed),             # Direita: M1=0, M2=+speed, M3=-speed
             'rotate_right': (speed, speed, speed),   # Rotação horária in-place
+            'rotate_left': (-speed, -speed, -speed), # Rotação anti-horária in-place
             'stop': (0, 0, 0)
         }
         
