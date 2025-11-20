@@ -573,7 +573,7 @@ class ObstacleDetector:
 
 
 class AutonomousNavigator:
-    """Sistema de navegação autônoma baseado em análise posicional de objetos"""
+    """Sistema de navegação autônoma baseado em distâncias da câmera D435"""
     
     def __init__(self):
         self.current_state = 'moving_forward'
@@ -581,7 +581,6 @@ class AutonomousNavigator:
         self.rotation_counter = 0
         self.rotation_steps_45deg = 2
         self.rotation_direction = None  # 'left' ou 'right'
-        self.image_width = 640  # Resolução da D435
         
         # Controle de exploração: andar e girar para observar
         self.forward_counter = 0
@@ -589,70 +588,45 @@ class AutonomousNavigator:
         self.scan_counter = 0
         self.scan_steps = 6  # Quantos passos girar para escanear ao redor
         
-    def analyze_object_position(self, tracked_objects):
+        # Distância de segurança mínima (metros)
+        self.safe_distance = 0.8
+        
+    def analyze_depth_distances(self, height_obstacles):
         """
-        Analisa posição dos objetos e determina melhor direção de desvio
+        Analisa as distâncias esquerda/direita dos dados da câmera D435
+        Se esquerda está mais perto: gira sentido horário (direita) para se afastar
+        Se direita está mais perto: gira sentido anti-horário (esquerda) para se afastar
         Retorna: 'left', 'right', ou None (sem obstáculos)
         """
-        if not tracked_objects or len(tracked_objects) == 0:
+        if not height_obstacles or 'distances' not in height_obstacles:
             return None
         
-        # Define setores da imagem (esquerda, centro, direita)
-        left_boundary = self.image_width / 3
-        right_boundary = (self.image_width * 2) / 3
+        distances = height_obstacles['distances']
+        left_dist = distances.get('left', 3.0)
+        right_dist = distances.get('right', 3.0)
         
-        # Analisa cada objeto
-        objects_left = []
-        objects_center = []
-        objects_right = []
+        # Se ambos estão longe, não precisa desviar
+        if left_dist > self.safe_distance and right_dist > self.safe_distance:
+            return None
         
-        for obj_id, obj_data in tracked_objects.items():
-            cx, cy = obj_data['centroid']
-            depth = obj_data['depth']
-            
-            # Classifica objeto por posição horizontal
-            if cx < left_boundary:
-                objects_left.append({'x': cx, 'depth': depth})
-            elif cx > right_boundary:
-                objects_right.append({'x': cx, 'depth': depth})
-            else:
-                objects_center.append({'x': cx, 'depth': depth})
-        
-        # Lógica de decisão:
-        # 1. Se tem objeto no centro, desvia para o lado com menos objetos
-        if len(objects_center) > 0:
-            if len(objects_left) < len(objects_right):
-                return 'left'
-            elif len(objects_right) < len(objects_left):
-                return 'right'
-            else:
-                # Empate: desvia para direita (padrão)
-                return 'right'
-        
-        # 2. Se tem objeto apenas na esquerda, desvia para direita
-        if len(objects_left) > 0 and len(objects_right) == 0:
+        # Decide baseado em qual lado está mais perto
+        # Se esquerda mais perto: vira sentido horário (direita) para se afastar
+        if left_dist < right_dist:
             return 'right'
-        
-        # 3. Se tem objeto apenas na direita, desvia para esquerda
-        if len(objects_right) > 0 and len(objects_left) == 0:
+        # Se direita mais perto: vira sentido anti-horário (esquerda) para se afastar
+        elif right_dist < left_dist:
             return 'left'
         
-        # 4. Se tem objetos em ambos os lados, desvia para o lado com menos objetos
-        if len(objects_left) > 0 and len(objects_right) > 0:
-            if len(objects_left) < len(objects_right):
-                return 'left'
-            else:
-                return 'right'
+        # Se ambos igualmente pertos, default para direita
+        return 'right'
         
-        return None
-        
-    def decide_movement(self, tracked_objects):
+    def decide_movement(self, height_obstacles):
         """
         Decide próximo movimento: alterna entre andar reto e girar para escanear
+        Usa dados de profundidade esquerda/direita da câmera D435 para desvio
         """
         detection_info = {
             'state': self.current_state,
-            'tracked_count': len(tracked_objects) if tracked_objects else 0,
             'forward_counter': self.forward_counter,
             'scan_counter': self.scan_counter
         }
@@ -683,8 +657,8 @@ class AutonomousNavigator:
                 self.scan_counter = 0
                 return 'rotate_right', int(self.base_speed * 0.5), detection_info
             
-            # Verifica se há obstáculos no caminho
-            avoidance_direction = self.analyze_object_position(tracked_objects)
+            # Verifica se há obstáculos no caminho usando distâncias esquerda/direita
+            avoidance_direction = self.analyze_depth_distances(height_obstacles)
             
             if avoidance_direction:
                 # Detectou obstáculo, inicia rotação de desvio na direção calculada
@@ -1016,9 +990,9 @@ class WebSocketServer:
                 
                 # NAVEGAÇÃO AUTÔNOMA
                 if self.autonomous_mode and self.robot.is_connected():
-                    tracked_objects = message.get('tracked_objects', [])
+                    height_obstacles = message.get('height_obstacles', None)
                     
-                    direction, speed, nav_info = self.navigator.decide_movement(tracked_objects)
+                    direction, speed, nav_info = self.navigator.decide_movement(height_obstacles)
                     
                     if direction and speed > 0:
                         self.robot.move(direction, speed)
