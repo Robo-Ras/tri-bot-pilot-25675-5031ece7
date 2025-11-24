@@ -25,6 +25,13 @@ const TabletStatus = () => {
             if (!data.connected) {
               setStatus('stopped');
             }
+          } else if (data.type === 'sensor_data') {
+            // Atualiza status com base no movimento do robô (manual ou autônomo)
+            if (data.robot_moving) {
+              setStatus('moving');
+            } else {
+              setStatus('stopped');
+            }
           }
         } catch (error) {
           console.error('Erro ao processar mensagem:', error);
