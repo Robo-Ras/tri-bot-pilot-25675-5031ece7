@@ -7,7 +7,14 @@ const TabletStatus = () => {
 
   useEffect(() => {
     const connectWebSocket = () => {
-      const ws = new WebSocket('ws://localhost:8765');
+      // Usa o hostname da URL atual para conectar ao WebSocket
+      // Se acessar via 10.21.10.186:8080, conecta em ws://10.21.10.186:8765
+      const wsHost = window.location.hostname === 'localhost' 
+        ? 'localhost' 
+        : window.location.hostname;
+      const wsUrl = `ws://${wsHost}:8765`;
+      console.log('📱 Tablet: Conectando ao WebSocket:', wsUrl);
+      const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
       ws.onopen = () => {
