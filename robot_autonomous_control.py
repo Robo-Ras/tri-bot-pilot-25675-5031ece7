@@ -780,6 +780,7 @@ class WebSocketServer:
         self.running = True
         self.tablet_connected = False
         self.robot_moving = False
+        self.last_move_time = 0  # Para detectar timeout de movimento manual
         
     async def register(self, websocket):
         """Registra novo cliente"""
@@ -877,12 +878,21 @@ class WebSocketServer:
             if 'm1' in data and 'm2' in data and 'm3' in data:
                 print(f"🎮 COMANDO RECEBIDO DO FRONTEND: M1={data['m1']}, M2={data['m2']}, M3={data['m3']}")
                 self.robot.send_command(data['m1'], data['m2'], data['m3'])
-                self.robot_moving = any([data['m1'] != 0, data['m2'] != 0, data['m3'] != 0])
+                is_moving = any([data['m1'] != 0, data['m2'] != 0, data['m3'] != 0])
+                if is_moving:
+                    self.robot_moving = True
+                    self.last_move_time = asyncio.get_event_loop().time()
+                else:
+                    self.robot_moving = False
             else:
                 direction = data.get('direction')
                 speed = data.get('speed', 150)
                 self.robot.move(direction, speed)
-                self.robot_moving = direction != 'stop'
+                if direction != 'stop':
+                    self.robot_moving = True
+                    self.last_move_time = asyncio.get_event_loop().time()
+                else:
+                    self.robot_moving = False
             
         elif cmd_type == 'set_autonomous':
             self.autonomous_mode = data.get('enabled', False)
@@ -927,6 +937,12 @@ class WebSocketServer:
                 if loop_start - last_tablet_check > 5:
                     self.tablet_connected = False
                     last_tablet_check = loop_start
+                
+                # Detecta timeout de movimento manual (0.3s sem comando = parado)
+                if not self.autonomous_mode and self.robot_moving:
+                    if loop_start - self.last_move_time > 0.3:
+                        self.robot_moving = False
+                        print("⏸️ Timeout de movimento manual - robô parado")
                 
                 message = {
                     'type': 'sensor_data',
