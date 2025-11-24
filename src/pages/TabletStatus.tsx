@@ -20,12 +20,15 @@ const TabletStatus = () => {
           const data = JSON.parse(event.data);
           
           if (data.type === 'autonomous_status') {
+            console.log('📱 Tablet: autonomous_status recebido:', data.enabled);
             setStatus(data.enabled ? 'moving' : 'stopped');
           } else if (data.type === 'serial_status') {
+            console.log('📱 Tablet: serial_status recebido:', data.connected);
             if (!data.connected) {
               setStatus('stopped');
             }
           } else if (data.type === 'sensor_data') {
+            console.log('📱 Tablet: sensor_data - robot_moving:', data.robot_moving);
             // Atualiza status com base no movimento do robô (manual ou autônomo)
             if (data.robot_moving) {
               setStatus('moving');
